@@ -1,3 +1,57 @@
+# Leash Agent — a security leash for AI trading agents
+
+> **AI agents should never hold exchange keys.** Leash Agent sits between an autonomous trading agent and an OKX
+> account: the agent only *proposes* signed order intents; Leash Agent checks them against the owner's on-chain policy,
+> executes only what is allowed with an order-bound authorization, and anchors every decision on **Avalanche**.
+
+**Claim:** on an account managed by Leash Agent, an order that violates the verified user policy and increases risk
+never reaches the exchange through Leash Agent — even if the agent's LLM is prompt-injected or fully compromised.
+
+### How it works
+```
+Agent (LLM + signal, NO exchange key) --EIP-712 signed intent-->  Leash Agent gateway
+   L3 identity · signature · replay · schema   ->  L4 deterministic rules + auditor LLM (can only tighten)
+   L5 atomic risk reservation · x402 credits    ->  single-use, order-bound authorization (30 s)
+   L6 isolated executor: re-checks policy on-chain, writes to OKX exactly once (Agent Trade Kit)
+   L7 hash-chained audit log -> durable outbox -> DecisionLog on Avalanche Fuji (~3 s)
+```
+
+### Live on Avalanche Fuji (source-verified)
+| | Address / proof |
+|---|---|
+| PolicyRegistry — owner's rules, delegation, emergency pause | [`0x9d0f…f68F`](https://testnet.snowtrace.io/address/0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F) |
+| DecisionLog — hash of every decision & execution event | [`0xdC10…0d96`](https://testnet.snowtrace.io/address/0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96) |
+| ERC-8004 identities (official registry) | Leash Agent **#266**, demo trading agent **#267** on [`0x8004…BD9e`](https://testnet.snowtrace.io/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
+| Example on-chain Allow decision + execution | [tx 0xf0fc…bd71](https://testnet.snowtrace.io/tx/0xf0fcd77d9f9c66779ef79819fae435df82750caaf8d8150e9ea2194bb290bd71) |
+| Measured finality (public RPC, median) | pause ~4.3 s · decision log ~3.1 s |
+
+### Why it matters
+| Judging area | What Leash Agent delivers |
+|---|---|
+| **Agentic design** | Autonomous loop: market observation → deterministic signal → LLM review → signed intent; reads news only through an isolated, tool-less summarizer |
+| **Technical execution** | 7-layer architecture, fail-closed everywhere, **380+ tests + 35 Solidity tests in CI**, prompt-injection & attack acceptance suite |
+| **Avalanche** | Policy + evidence contracts on C-Chain, fast finality for pause/evidence, **ERC-8004** discovery, **x402** payments on Fuji |
+| **OKX** | **OKX Agent Trade Kit**: keyless market data for the agent, read-only key for risk, trade key only inside the isolated executor (no withdraw permission); run against a real OKX account |
+| **Business model** | Agents buy security checks themselves via **x402** (1 payment → 5 checks). Payment buys service, never authority; protective cancels are always free |
+
+### Security guarantees (tested)
+- The agent process holds **no exchange key**; only the isolated executor can write to OKX.
+- The auditor LLM can **only block or escalate** — never turn a rule BLOCK into an ALLOW; unreachable ⇒ human review.
+- Authorizations are **single-use, bound to one normalized order**, account and policy version, valid 30 s.
+- **One request ⇒ at most one exchange write**; timeouts are reconciled, never blindly resent.
+- **x402 payment is not authorization**; ERC-8004 identity is not authorization.
+
+### Run it
+```bash
+npm install && npm test                 # full suite (needs Node >= 22.13, Foundry)
+npm run demo:attack -- --serve          # offline prompt-injection demo + dashboard
+npm run gateway:fuji                    # gateway on the live Fuji policy + DecisionLog (needs .env)
+npm run e2e:fuji                        # live: 402 -> x402 purchase -> allowed + blocked -> on-chain evidence
+```
+Architecture: [`SONPLAN.md`](SONPLAN.md) · Team handoffs: [`docs/`](docs/)
+
+---
+
 # Leash Agent
 
 Mimari: `SONPLAN.md`. Bu repo üç kişinin kapsamını içerir: **Kişi 1** (L3–L6 gateway, executor, OKX/ATK adaptörü),
