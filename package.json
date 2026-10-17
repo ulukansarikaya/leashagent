@@ -1,0 +1,23 @@
+{
+  "name": "bekci",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "spike:atk": "tsx scripts/atk-spike.ts"
+  },
+  "packageManager": "pnpm@10.18.0",
+  "devDependencies": {
+    "@bekci/executor": "workspace:*",
+    "@bekci/gateway": "workspace:*",
+    "@bekci/mocks": "workspace:*",
+    "@bekci/shared": "workspace:*",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "viem": "^2.57.7",
+    "vitest": "^5.0.5",
+    "@bekci/atk": "workspace:*"
+  }
+}

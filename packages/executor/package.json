@@ -1,0 +1,10 @@
+{
+  "name": "@bekci/executor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": { "@bekci/shared": "workspace:*", "viem": "^2.57.7" },
+  "devDependencies": { "@bekci/mocks": "workspace:*" }
+}

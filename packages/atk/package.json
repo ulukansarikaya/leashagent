@@ -1,0 +1,15 @@
+{
+  "name": "@bekci/atk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@bekci/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  },
+  "devDependencies": {
+    "@bekci/mocks": "workspace:*"
+  }
+}
