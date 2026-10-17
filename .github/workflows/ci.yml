@@ -1,0 +1,41 @@
+# §25.7 mechanical consistency gate + full test suite on every push / PR.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - run: npm ci
+
+      - name: Contracts (forge build + test)
+        working-directory: packages/chain
+        run: |
+          forge build
+          forge test
+
+      - name: Generated ABI module is up to date
+        run: |
+          node packages/chain/scripts/gen-abi.mjs
+          git diff --exit-code -- packages/chain/src/abi.ts || (echo "abi.ts is stale — run npm run build:contracts and commit" && exit 1)
+
+      - run: npm run typecheck
+
+      # Includes the §25.7 consistency test and the Anvil end-to-end tests (anvil comes with foundry-toolchain).
+      - name: Tests
+        run: ANVIL_BIN="$(command -v anvil)" npm test
