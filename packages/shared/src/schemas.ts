@@ -3,10 +3,14 @@ import { dec, DEC_RE } from "./dec.js";
 import {
   AUTH_BASES,
   CHAIN_VERDICTS,
+  CHAIN_WRITE_STATES,
   EXEC_STATUSES,
   TOOLS,
   type AuditorOutput,
+  type ChainOutboxStats,
   type ChainRecord,
+  type ChainWritePayload,
+  type HealthChainStatus,
   type Hex,
   type ExecutionAuthorization,
   type NormalizedOrder,
@@ -214,6 +218,20 @@ export const chainRecordSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const countSchema = z.number().int().nonnegative();
+export const chainOutboxStatsSchema = z.strictObject({
+  pending: countSchema, submitted: countSchema, confirmed: countSchema, dead: countSchema,
+});
+export const healthChainSchema = z.union([z.strictObject({ outbox: chainOutboxStatsSchema }), z.literal("disabled")]);
+export const chainWritePayloadSchema = z.strictObject({
+  state: z.enum(CHAIN_WRITE_STATES),
+  kind: z.enum(["decision", "execution"]).optional(),
+  eventSeq: z.number().int().positive().optional(),
+  txHash: bytes32Schema.optional(),
+  error: z.string().max(500).optional(),
+  attempts: z.number().int().nonnegative().optional(),
+});
+
 // Compile-time drift guard: each schema's output must be assignable to its frozen type.
 type Assert<T extends true> = T;
 type Sub<A, B> = A extends B ? true : false;
@@ -229,6 +247,9 @@ export type _SchemaTypeChecks = [
   Assert<Sub<z.infer<typeof auditorOutputSchema>, AuditorOutput>>,
   Assert<Sub<z.infer<typeof policySchema>, Policy>>,
   Assert<Sub<z.infer<typeof chainRecordSchema>, ChainRecord>>,
+  Assert<Sub<z.infer<typeof chainOutboxStatsSchema>, ChainOutboxStats>>,
+  Assert<Sub<z.infer<typeof healthChainSchema>, HealthChainStatus>>,
+  Assert<Sub<z.infer<typeof chainWritePayloadSchema>, ChainWritePayload>>,
 ];
 
 export const schemas = {
@@ -243,4 +264,7 @@ export const schemas = {
   auditorOutput: auditorOutputSchema,
   policy: policySchema,
   chainRecord: chainRecordSchema,
+  chainOutboxStats: chainOutboxStatsSchema,
+  healthChain: healthChainSchema,
+  chainWritePayload: chainWritePayloadSchema,
 };

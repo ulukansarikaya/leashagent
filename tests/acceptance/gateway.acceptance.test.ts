@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { Account } from "viem";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, computePolicyId, hashCanonical, signAgentIntent,
+  APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, chainWritePayloadSchema, computePolicyId, hashCanonical, healthChainSchema, signAgentIntent,
   type AuditEvent, type Hex, type IntentResponse, type OrderIntent, type OrderStatus, type SignedIntentRequest,
 } from "@bekci/shared";
 import { BekciClient, IntentBuilder } from "@bekci/agent";
@@ -218,6 +218,28 @@ describe("prompt injection", () => {
 
   it("read signed by a non-delegated key is refused", async () => {
     await expect(new BekciClient(t.url, t.attacker, t.policyId).read("news", "bitcoin")).rejects.toThrow();
+  });
+});
+
+describe("dashboard contract: chain evidence (shared ChainOutboxStats / ChainWritePayload)", () => {
+  it("GET /v1/health reports chain as { outbox: {pending, submitted, confirmed, dead} } or \"disabled\"", async () => {
+    const h = await fetch(`${t.url}/v1/health`).then((r) => r.json());
+    expect(healthChainSchema.safeParse(h.chain).success, JSON.stringify(h.chain)).toBe(true);
+  });
+
+  it("every chain_write event payload matches ChainWritePayload; record states name their order", async () => {
+    await settle();
+    const writes = (await events()).filter((e) => e.type === "chain_write");
+    if (t.kind === "mock") expect(writes.length).toBeGreaterThan(0);
+    for (const e of writes) {
+      const p = chainWritePayloadSchema.safeParse(e.payload);
+      expect(p.success, JSON.stringify(e.payload)).toBe(true);
+      if (p.data!.state !== "retry") {
+        expect(e.requestId).toBeTruthy();
+        expect(p.data!.kind).toBeDefined();
+      }
+      if (p.data!.state === "confirmed") expect(p.data!.txHash).toBeDefined();
+    }
   });
 });
 

@@ -32,3 +32,11 @@ button.ok { border-color: var(--allow); color: var(--allow); }
 #feed li { padding: 2px 0; }
 .pend { border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 8px; }
 .pend .actions { display: flex; gap: 8px; margin-top: 6px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+.stats div { border: 1px solid var(--border); border-radius: 6px; padding: 6px 4px; }
+.stats b { display: block; font-size: 20px; }
+.big { font-size: 22px; font-weight: 700; }
+.small { font-size: 12px; }
+.c-pending, .c-submitted, .c-retry { color: var(--pending); }
+.c-confirmed { color: var(--allow); }
+.c-dead { color: var(--block); font-weight: 600; }

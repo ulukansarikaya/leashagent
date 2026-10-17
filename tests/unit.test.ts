@@ -105,3 +105,16 @@ describe("agent egress allowlist", () => {
     } finally { globalThis.fetch = original; }
   });
 });
+
+describe("shared chain-evidence contract", () => {
+  it("schemas accept the agreed shapes and reject drift", async () => {
+    const { healthChainSchema, chainWritePayloadSchema } = await import("@bekci/shared");
+    expect(healthChainSchema.safeParse({ outbox: { pending: 1, submitted: 0, confirmed: 2, dead: 0 } }).success).toBe(true);
+    expect(healthChainSchema.safeParse("disabled").success).toBe(true);
+    expect(healthChainSchema.safeParse({ outbox: { pending: 1 } }).success).toBe(false);
+    expect(healthChainSchema.safeParse({ outbox: { pending: 0, submitted: 0, confirmed: 0, dead: 0, failed: 1 } }).success).toBe(false);
+    expect(chainWritePayloadSchema.safeParse({ state: "confirmed", kind: "decision", txHash: "0x" + "ab".repeat(32) }).success).toBe(true);
+    expect(chainWritePayloadSchema.safeParse({ state: "written" }).success).toBe(false);
+    expect(chainWritePayloadSchema.safeParse({ state: "pending", kind: "decision", rawOkx: {} }).success).toBe(false);
+  });
+});
