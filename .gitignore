@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.db
+*.db-*
+.env
+packages/chain/out/
+packages/chain/cache/
+packages/chain/broadcast/

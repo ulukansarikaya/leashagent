@@ -1,0 +1,15 @@
+{
+  "policyId": {
+    "owner": "0x1111111111111111111111111111111111111111",
+    "accountIdentifier": "okx-demo-account-1",
+    "accountRef": "0xa3f9ea2c857bc80dfd87902876adc29b29e1ebd02888dd8648ef95c3d9677cda",
+    "agentRegistry": "0x8004000000000000000000000000000000000001",
+    "agentRegistryId": "42",
+    "expected": "0x44116affd786b57d8778d18eb3eb54673586d47fb216d825dc69bf0f66ee8869"
+  },
+  "requestId": {
+    "requestId": "123e4567-e89b-42d3-a456-426614174000",
+    "bytes32": "0xe4cee370379109bb1e94703056146bb95e06df579de2ee6f2af9f719e849b5c5",
+    "clOrdId": "bk68ab8daa9e5d79017a8b20ccd7e4ea"
+  }
+}

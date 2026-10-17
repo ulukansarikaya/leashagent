@@ -1,0 +1,39 @@
+// Reason codes — SONPLAN.md §12, §21.7. Must fit in uint16 (DecisionLog.reasonCode).
+export const ReasonCodes = {
+  OK: 0, // ALLOW decisions carry 0; 000 is also "identity/delegation" when paired with REJECTED_AUTH
+  IDENTITY: 0,
+  SCHEMA_OR_TOOL: 1,
+  INSUFFICIENT_AUTHORIZATION: 2, // never used for payment
+  POLICY_UNVERIFIED: 3,
+  PAYMENT_REQUIRED: 4,
+
+  PAUSED: 100,
+  INSTRUMENT: 101,
+  TOOL: 102,
+  SINGLE_ORDER_LIMIT: 103,
+  OPEN_NOTIONAL: 104,
+  RATE: 105,
+  DAILY_LOSS: 106,
+  PRICE_DEVIATION: 107,
+  STALE_DATA: 110,
+
+  AUDITOR_INJECTION: 201,
+  AUDITOR_INCONSISTENT: 202,
+  AUDITOR_BLOCK: 203,
+
+  HUMAN_AUDITOR_ASK: 301,
+  HUMAN_AUDITOR_UNAVAILABLE: 302,
+  HUMAN_ABOVE_THRESHOLD: 303,
+
+  AUTH_INVALID: 401,
+  AUTH_EXPIRED: 402,
+  AUTH_HASH_MISMATCH: 403,
+  AUTH_NONCE_REUSE: 404,
+  AUTH_POLICY_VERSION_CHANGED: 405,
+
+  STORE_ERROR: 501,
+  OKX_TIMEOUT: 502,
+  CHAIN_WRITE_DELAYED: 503,
+} as const;
+
+export type KnownReasonCode = (typeof ReasonCodes)[keyof typeof ReasonCodes];
