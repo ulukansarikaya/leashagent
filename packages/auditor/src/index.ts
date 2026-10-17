@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { Auditor, AuditorInput, AuditorOutput } from "@bekci/shared";
-import { extractJson, type LlmClient } from "@bekci/llm";
+import type { Auditor, AuditorInput, AuditorOutput } from "@leashagent/shared";
+import { extractJson, type LlmClient } from "@leashagent/llm";
 
 /** Thrown for timeout / unreachable / out-of-schema. The gateway maps it to PENDING 302 (§10). */
 export class AuditorUnavailable extends Error {}

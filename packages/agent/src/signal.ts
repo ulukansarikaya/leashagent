@@ -1,4 +1,4 @@
-import type { Signal } from "@bekci/shared";
+import type { Signal } from "@leashagent/shared";
 import type { MarketView } from "./market.js";
 
 export type SignalParams = { fast: number; slow: number; minSpread: number; minVolRatio: number };
@@ -6,7 +6,7 @@ export const DEFAULT_SIGNAL: SignalParams = { fast: 5, slow: 20, minSpread: 0.00
 
 /**
  * Deterministic SMA-crossover signal with a volume filter (§6.2).
- * Floats are fine here: the signal is advisory and never feeds Bekçi's risk math.
+ * Floats are fine here: the signal is advisory and never feeds Leash Agent's risk math.
  */
 export function generateSignal(m: MarketView, p: SignalParams = DEFAULT_SIGNAL): Signal {
   const closes = m.candles.map((c) => Number(c.close));

@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { getAddress } from "viem";
-import type { CreditReserveResult, EpochSec, Hex, PaymentEntitlement, ServiceCredit, UUID } from "@bekci/shared";
+import type { CreditReserveResult, EpochSec, Hex, PaymentEntitlement, ServiceCredit, UUID } from "@leashagent/shared";
 
 /** §21.5 tables. Owned by Person 3; the gateway runs `migrateCredits` on its SQLite handle. */
 export const CREDITS_DDL = `

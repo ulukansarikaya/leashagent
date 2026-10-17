@@ -40,10 +40,10 @@ Everything public is in `packages/shared` and must be imported from there, never
 ### Decisions I made that need agreement
 
 1. **`evidenceHash` excludes `auditorOutput.raw`** — raw provider JSON may hold floats that `canonicalJson` rejects.
-2. **`clOrdId` concatenation** = `policyId` bytes ‖ UTF-8 `requestId` bytes → `"bk" + 30 hex chars` (32 chars total).
-3. **`agentId` format** = `eip155:<chainId>:<checksummedRegistry>:<id>`; use `formatAgentId` / `agentIdMatchesBinding` / `bindingIsConsistent` from `@bekci/shared` in L3 step 3.
+2. **`clOrdId` concatenation** = `policyId` bytes ‖ UTF-8 `requestId` bytes → `"la" + 30 hex chars` (32 chars total).
+3. **`agentId` format** = `eip155:<chainId>:<checksummedRegistry>:<id>`; use `formatAgentId` / `agentIdMatchesBinding` / `bindingIsConsistent` from `@leashagent/shared` in L3 step 3.
 4. **EIP-712 field types**: nonces are `bytes16`, times `uint64`, `tool`/`basis`/`decision` are `string`.
-5. **`chain_outbox` gets 3 extra columns** (`state`, `next_attempt_at`, `confirmed_at`). DDL lives in `@bekci/chain` (`migrateChainOutbox`).
+5. **`chain_outbox` gets 3 extra columns** (`state`, `next_attempt_at`, `confirmed_at`). DDL lives in `@leashagent/chain` (`migrateChainOutbox`).
 6. **DecisionLog decision transitions**: none → Allow|Block|Pending; Pending → HumanApproved|HumanRejected|Block (EXPIRED is logged as Block).
 7. **`normalizeOrder` is NOT in shared yet** — Person 1 owns normalization; add it to shared once written.
 
@@ -51,9 +51,9 @@ Everything public is in `packages/shared` and must be imported from there, never
 
 ```ts
 import { createPolicyChainClient, verifyPolicyDocument, delegationActive,
-         createChainPolicyStateProvider, ChainOutbox, createDecisionLogPort } from "@bekci/chain";
-import { CreditStore, purchaseCredits, FacilitatorSettlement, MockSettlement } from "@bekci/payments";
-import { agentIdMatchesBinding } from "@bekci/identity";
+         createChainPolicyStateProvider, ChainOutbox, createDecisionLogPort } from "@leashagent/chain";
+import { CreditStore, purchaseCredits, FacilitatorSettlement, MockSettlement } from "@leashagent/payments";
+import { agentIdMatchesBinding } from "@leashagent/identity";
 ```
 
 - **PolicyLoader (L4)**: `client.getPolicy(id)` → fetch JSON from `policyURI` → `verifyPolicyDocument(id, json, record)` (INV-11) → `delegationActive(record, now)`.
@@ -73,7 +73,7 @@ import { agentIdMatchesBinding } from "@bekci/identity";
 - **ERC-8004 IdentityRegistry**: `0x8004A818BFB912233c491871b3d84c89A494BD9e` (official erc-8004 deployment, proxy
   "AgentIdentity"). Our ABI subset matches `abis/IdentityRegistry.json`; `npx tsx scripts/erc8004-resolve.ts 5`
   resolves a live agent. Registration cards follow the EIP-8004 `registration-v1` shape (`services`, `x402Support`,
-  `active`, `registrations`), Bekçi fields under `bekci`.
+  `active`, `registrations`), Leash Agent fields under `leash`.
 - **x402**: PayAI facilitator `https://facilitator.payai.network` lists `avalanche-fuji` (v1, exact). Asset: Circle
   Fuji USDC `0x5425890298aed601595a70AB815c96711a31Bc65` (EIP-3009, "USD Coin" v2, 6 decimals).
   `npx tsx scripts/x402-probe.ts` signs with `createExactPayment` and gets `invalid_exact_evm_insufficient_balance`
@@ -82,7 +82,7 @@ import { agentIdMatchesBinding } from "@bekci/identity";
 ## Still open
 
 - [x] Fuji deploy of our contracts (`scripts/deploy-fuji.sh`).
-- [ ] Publish Bekçi + demo trading agent on the Fuji ERC-8004 registry (needs the funded wallet).
+- [ ] Publish Leash Agent + demo trading agent on the Fuji ERC-8004 registry (needs the funded wallet).
 - [ ] Optional: a real paid x402 settle needs Fuji USDC on the agent wallet (Circle faucet); the demo can keep
       `MockSettlement`.
 - [ ] Credits are minted right after settlement in the same process; a crash between settle and mint loses that

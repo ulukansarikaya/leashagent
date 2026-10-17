@@ -1,5 +1,5 @@
-import type { IntentResponse, ReadSummary, Signal } from "@bekci/shared";
-import type { BekciClient } from "./bekciClient.js";
+import type { IntentResponse, ReadSummary, Signal } from "@leashagent/shared";
+import type { LeashClient } from "./leashClient.js";
 import type { IntentBuilder } from "./intentBuilder.js";
 import type { MarketObserver } from "./market.js";
 import type { Review, Reviewer } from "./reviewer.js";
@@ -27,7 +27,7 @@ export class TradingAgent {
     private market: MarketObserver,
     private reviewer: Reviewer,
     private builder: IntentBuilder,
-    private bekci: BekciClient,
+    private leash: LeashClient,
   ) {}
 
   async tick(): Promise<TickResult> {
@@ -38,7 +38,7 @@ export class TradingAgent {
     // External text reaches the agent only as ReadSummary via L1.
     const reads: ReadSummary[] = [];
     for (const q of this.cfg.readQueries) {
-      try { reads.push(await this.bekci.read(q.source, q.query)); } catch { /* reads are optional context */ }
+      try { reads.push(await this.leash.read(q.source, q.query)); } catch { /* reads are optional context */ }
     }
 
     const review = await this.reviewer.review({
@@ -48,7 +48,7 @@ export class TradingAgent {
     if (!review.proceed || !review.proposedIntent) return { signal, reads, review };
 
     const req = await this.builder.build(review.proposedIntent, review.rationale, reads.map((r) => r.readId));
-    const response = await this.bekci.submitIntent(req);
+    const response = await this.leash.submitIntent(req);
     return { signal, reads, review, response };
   }
 }

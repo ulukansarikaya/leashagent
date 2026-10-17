@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { ReadRecord, UUID } from "@bekci/shared";
+import type { ReadRecord, UUID } from "@leashagent/shared";
 
 /** Writes ReadRecords to the L5 store. The gateway owns the real (SQLite) implementation. */
 export interface ReadRecorder {

@@ -12,7 +12,7 @@ import {
   type ChainRecord,
   type Hex,
   type Policy,
-} from "@bekci/shared";
+} from "@leashagent/shared";
 import {
   ChainOutbox,
   createChainPolicyStateProvider,
@@ -76,7 +76,7 @@ run("chain e2e (anvil)", () => {
     const expiresAt = Math.floor(Date.now() / 1000) + 86400;
     const policy: Policy = {
       policyVersion: 1,
-      binding: { policyId, owner: owner.address, accountRef, agentRegistry, agentRegistryId: "42", agentId: "bekci-demo-agent" },
+      binding: { policyId, owner: owner.address, accountRef, agentRegistry, agentRegistryId: "42", agentId: "leash-demo-agent" },
       agentAuthAddress: agentAuth.address, delegationValidUntil: expiresAt,
       mandate: "Trade BTC-USDT spot conservatively", allowedInstruments: ["BTC-USDT"],
       allowedTools: ["spot_place_order", "spot_cancel_order"], forbiddenTools: ["transfer", "withdraw"],

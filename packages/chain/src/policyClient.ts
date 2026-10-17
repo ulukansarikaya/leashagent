@@ -8,7 +8,7 @@ import {
   type Policy,
   type PolicyChainClient,
   type PolicyRecord,
-} from "@bekci/shared";
+} from "@leashagent/shared";
 import { policyRegistryAbi } from "./abi.js";
 
 export function createPolicyChainClient(publicClient: PublicClient, registryAddress: Address): PolicyChainClient {

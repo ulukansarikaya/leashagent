@@ -1,6 +1,6 @@
-// Bekçi dashboard: consumes only HTTP + SSE (§15.2). Owner actions are signed in the wallet
+// Leash Agent dashboard: consumes only HTTP + SSE (§15.2). Owner actions are signed in the wallet
 // (EIP-712, eth_signTypedData_v4); the dashboard never holds a key.
-const DOMAIN = { name: "Bekci", version: "1", chainId: 43113 };
+const DOMAIN = { name: "LeashAgent", version: "1", chainId: 43113 };
 const DOMAIN_TYPE = [{ name: "name", type: "string" }, { name: "version", type: "string" }, { name: "chainId", type: "uint256" }];
 const TYPES = {
   ApprovalDecision: [

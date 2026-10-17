@@ -1,5 +1,5 @@
 import { getAddress, toHex, type Account } from "viem";
-import type { Hex } from "@bekci/shared";
+import type { Hex } from "@leashagent/shared";
 import type { PaymentPayload, PaymentRequirements } from "./x402.js";
 
 // x402 v1 "exact" scheme on EVM = EIP-3009 transferWithAuthorization, signed by the payer, settled by the facilitator.
@@ -23,7 +23,7 @@ export function fujiUsdcRequirements(opts: {
     network: "avalanche-fuji",
     maxAmountRequired: opts.maxAmountRequired,
     resource: opts.resource,
-    description: opts.description ?? "Bekci: 5 risk-increasing intent checks",
+    description: opts.description ?? "Leash Agent: 5 risk-increasing intent checks",
     mimeType: "application/json",
     payTo: getAddress(opts.payTo),
     maxTimeoutSeconds: 120,

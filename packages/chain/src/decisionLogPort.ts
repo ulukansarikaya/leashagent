@@ -7,7 +7,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
-import { CHAIN_VERDICTS, EXEC_STATUSES, requestIdToBytes32, type ChainRecord, type Hex } from "@bekci/shared";
+import { CHAIN_VERDICTS, EXEC_STATUSES, requestIdToBytes32, type ChainRecord, type Hex } from "@leashagent/shared";
 import { decisionLogAbi } from "./abi.js";
 
 /** Chain I/O the outbox needs. Swappable so the outbox logic is testable without a node. */

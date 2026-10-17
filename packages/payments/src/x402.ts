@@ -1,5 +1,5 @@
 import { getAddress } from "viem";
-import type { Hex } from "@bekci/shared";
+import type { Hex } from "@leashagent/shared";
 
 // x402 "exact" scheme wire types. Field names follow the public x402 spec;
 // facilitator availability on Avalanche Fuji is UNVERIFIED (SONPLAN.md §24.1).

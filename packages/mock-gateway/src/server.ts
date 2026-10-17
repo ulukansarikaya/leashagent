@@ -1,10 +1,10 @@
 // TEST/DEMO ONLY. Starts the mock gateway for offline demos. Never point a production agent here.
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { privateKeyToAccount, type Hex } from "@bekci/shared";
-import { auditorFromEnv } from "@bekci/auditor";
-import { FixtureSource, HeuristicReaderModel, LlmReaderModel } from "@bekci/ingest";
-import { llmFromEnv } from "@bekci/llm";
+import { privateKeyToAccount, type Hex } from "@leashagent/shared";
+import { auditorFromEnv } from "@leashagent/auditor";
+import { FixtureSource, HeuristicReaderModel, LlmReaderModel } from "@leashagent/ingest";
+import { llmFromEnv } from "@leashagent/llm";
 import { createGateway } from "./index.js";
 import { DEMO_ARTICLES, DEMO_PRICE, demoPolicy } from "./fixtures.js";
 

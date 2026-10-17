@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readSummarySchema, type ReadSummary } from "@bekci/shared";
-import { extractJson, type LlmClient } from "@bekci/llm";
+import { readSummarySchema, type ReadSummary } from "@leashagent/shared";
+import { extractJson, type LlmClient } from "@leashagent/llm";
 import { looksLikeInstructions } from "./sanitizer.js";
 
 export type ReaderInput = { source: string; text: string; url?: string };

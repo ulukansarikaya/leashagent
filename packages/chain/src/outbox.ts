@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { canonicalJson, chainRecordSchema, type ChainRecord, type DecisionChainWriter, type Hex } from "@bekci/shared";
+import { canonicalJson, chainRecordSchema, type ChainRecord, type DecisionChainWriter, type Hex } from "@leashagent/shared";
 import { PermanentRevert, type DecisionLogPort } from "./decisionLogPort.js";
 
 /**

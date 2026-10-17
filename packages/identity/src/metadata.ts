@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ERC-8004 registration file, aligned with the EIP-8004 "registration-v1" format
 // (type, name, description, image, services[], x402Support, active, registrations[], supportedTrust[]).
-// Bekçi-specific fields live under the namespaced `bekci` object so generic 8004 tooling can read our cards.
+// Leash Agent-specific fields live under the namespaced `leash` object so generic 8004 tooling can read our cards.
 
 export const REGISTRATION_TYPE = "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";
 
@@ -12,7 +12,7 @@ const serviceSchema = z.object({
   version: z.string().max(32).optional(),
 });
 
-const bekciExtSchema = z.strictObject({
+const leashExtSchema = z.strictObject({
   kind: z.enum(["agent-security-gateway", "trading-agent"]),
   capabilities: z.array(z.string().max(64)).max(20),
   paymentNetwork: z.string().max(64).optional(),
@@ -33,10 +33,10 @@ export const registrationSchema = z.strictObject({
     .max(5)
     .default([]),
   supportedTrust: z.array(z.string().max(64)).max(8).default([]),
-  bekci: bekciExtSchema,
+  leash: leashExtSchema,
 });
 
-/** Lenient shape for cards OTHERS publish — unknown fields ignored, `bekci` optional. */
+/** Lenient shape for cards OTHERS publish — unknown fields ignored, `leash` optional. */
 export const foreignRegistrationSchema = z.object({
   type: z.literal(REGISTRATION_TYPE),
   name: z.string().min(1).max(256),
@@ -44,17 +44,17 @@ export const foreignRegistrationSchema = z.object({
   services: z.array(serviceSchema).max(50).default([]),
   x402Support: z.boolean().optional(),
   active: z.boolean().optional(),
-  bekci: bekciExtSchema.optional(),
+  leash: leashExtSchema.optional(),
 });
 
 export type Registration = z.infer<typeof registrationSchema>;
 export type ForeignRegistration = z.infer<typeof foreignRegistrationSchema>;
 
-export function bekciRegistration(opts: { baseUrl: string; paymentNetwork?: string; image?: string }): Registration {
+export function leashRegistration(opts: { baseUrl: string; paymentNetwork?: string; image?: string }): Registration {
   const base = opts.baseUrl.replace(/\/$/, "");
   return registrationSchema.parse({
     type: REGISTRATION_TYPE,
-    name: "Bekci",
+    name: "Leash Agent",
     description: "Security gateway that enforces an owner-signed policy before an AI agent's orders reach OKX.",
     image: opts.image,
     services: [
@@ -66,7 +66,7 @@ export function bekciRegistration(opts: { baseUrl: string; paymentNetwork?: stri
     x402Support: true,
     active: true,
     supportedTrust: ["validation"],
-    bekci: {
+    leash: {
       kind: "agent-security-gateway",
       capabilities: ["okx-spot-policy-enforcement", "signed-execution-authorization", "audit-evidence"],
       paymentNetwork: opts.paymentNetwork ?? "avalanche-fuji",
@@ -83,7 +83,7 @@ export function tradingAgentRegistration(opts: { name: string; description: stri
     services: opts.homepage ? [{ name: "web", endpoint: opts.homepage }] : [],
     x402Support: false,
     active: true,
-    bekci: { kind: "trading-agent", capabilities: ["okx-spot-trading", "bekci-protected"] },
+    leash: { kind: "trading-agent", capabilities: ["okx-spot-trading", "leash-protected"] },
   });
 }
 

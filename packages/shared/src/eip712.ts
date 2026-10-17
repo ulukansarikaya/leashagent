@@ -10,7 +10,7 @@ import type {
 } from "./types.js";
 
 /** §5.9 — off-chain verification only, no verifyingContract. */
-export const BEKCI_DOMAIN = { name: "Bekci", version: "1", chainId: 43113 } as const;
+export const LEASH_DOMAIN = { name: "LeashAgent", version: "1", chainId: 43113 } as const;
 
 export const EIP712_TYPES = {
   AgentIntent: [
@@ -60,7 +60,7 @@ export const EIP712_TYPES = {
 } as const;
 
 // Per-message type sets (viem accepts either these or the combined EIP712_TYPES).
-export const EIP712_DOMAIN = BEKCI_DOMAIN;
+export const EIP712_DOMAIN = LEASH_DOMAIN;
 export const AGENT_INTENT_TYPES = { AgentIntent: EIP712_TYPES.AgentIntent } as const;
 export const AUTHORIZATION_TYPES = { ExecutionAuthorization: EIP712_TYPES.ExecutionAuthorization } as const;
 export const APPROVAL_TYPES = { ApprovalDecision: EIP712_TYPES.ApprovalDecision } as const;
@@ -134,7 +134,7 @@ export async function signAgentIntent(
   req: Unsigned<SignedIntentRequest, "agentSignature">,
 ): Promise<SignedIntentRequest> {
   const agentSignature = await typedSigner(account)({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "AgentIntent",
     message: agentIntentMessage(req),
@@ -147,7 +147,7 @@ export async function signAuthorization(
   a: Unsigned<ExecutionAuthorization, "signature">,
 ): Promise<ExecutionAuthorization> {
   const signature = await typedSigner(account)({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "ExecutionAuthorization",
     message: authorizationMessage(a),
@@ -160,7 +160,7 @@ export async function signApproval(
   a: Unsigned<SignedApproval, "ownerSignature">,
 ): Promise<SignedApproval> {
   const ownerSignature = await typedSigner(account)({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "ApprovalDecision",
     message: approvalMessage(a),
@@ -173,7 +173,7 @@ export async function signPauseCommand(
   p: Unsigned<SignedPauseCommand, "ownerSignature">,
 ): Promise<SignedPauseCommand> {
   const ownerSignature = await typedSigner(account)({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "PauseCommand",
     message: pauseMessage(p),
@@ -184,7 +184,7 @@ export async function signPauseCommand(
 /** Signs a ReadRequest (returns the signature only — the agent puts it in `agentSignature`). */
 export async function signAgentRead(account: Account, r: UnsignedRead): Promise<Hex> {
   return typedSigner(account)({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "AgentRead",
     message: agentReadMessage(r),
@@ -196,7 +196,7 @@ export async function signAgentRead(account: Account, r: UnsignedRead): Promise<
 
 export function recoverAgentIntentSigner(req: SignedIntentRequest): Promise<Hex> {
   return recoverTypedDataAddress({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "AgentIntent",
     message: agentIntentMessage(req),
@@ -206,7 +206,7 @@ export function recoverAgentIntentSigner(req: SignedIntentRequest): Promise<Hex>
 
 export function recoverAuthorizationSigner(a: ExecutionAuthorization): Promise<Hex> {
   return recoverTypedDataAddress({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "ExecutionAuthorization",
     message: authorizationMessage(a),
@@ -216,7 +216,7 @@ export function recoverAuthorizationSigner(a: ExecutionAuthorization): Promise<H
 
 export function recoverApprovalSigner(a: SignedApproval): Promise<Hex> {
   return recoverTypedDataAddress({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "ApprovalDecision",
     message: approvalMessage(a),
@@ -226,7 +226,7 @@ export function recoverApprovalSigner(a: SignedApproval): Promise<Hex> {
 
 export function recoverPauseSigner(p: SignedPauseCommand): Promise<Hex> {
   return recoverTypedDataAddress({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "PauseCommand",
     message: pauseMessage(p),
@@ -236,7 +236,7 @@ export function recoverPauseSigner(p: SignedPauseCommand): Promise<Hex> {
 
 export function recoverAgentReadSigner(r: UnsignedRead & { agentSignature: Hex }): Promise<Hex> {
   return recoverTypedDataAddress({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "AgentRead",
     message: agentReadMessage(r),
@@ -265,7 +265,7 @@ export const verifyPauseCommand = (p: SignedPauseCommand, expected: Hex) =>
 export function computeAuthHash(a: Unsigned<ExecutionAuthorization, "signature"> | undefined): Hex {
   if (!a) return `0x${"0".repeat(64)}`;
   return hashTypedData({
-    domain: BEKCI_DOMAIN,
+    domain: LEASH_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "ExecutionAuthorization",
     message: authorizationMessage(a),

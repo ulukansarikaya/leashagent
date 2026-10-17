@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title DecisionLog — hash-only evidence of Bekçi decisions and execution events (SONPLAN.md §7).
+/// @title DecisionLog — hash-only evidence of Leash Agent decisions and execution events (SONPLAN.md §7).
 /// @dev Evidence, not dependency (P9): the gateway never waits on this contract to decide.
 ///      `ExecutionLogged` records what the gateway observed; it does not prove an OKX fill.
 contract DecisionLog {

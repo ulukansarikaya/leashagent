@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Account } from "viem";
-import { signAgentIntent, type Hex, type OrderIntent, type SignedIntentRequest, type UUID } from "@bekci/shared";
+import { signAgentIntent, type Hex, type OrderIntent, type SignedIntentRequest, type UUID } from "@leashagent/shared";
 
 export class IntentBuilder {
   constructor(private account: Account, private policyId: Hex, private agentId: string) {}

@@ -85,7 +85,7 @@ describe("ids", () => {
     expect(requestIdToBytes32(vectors.requestId.requestId)).toBe(vectors.requestId.bytes32);
     const c = deriveClOrdId(policyId, vectors.requestId.requestId);
     expect(c).toBe(vectors.requestId.clOrdId);
-    expect(c).toMatch(/^bk[0-9a-f]{30}$/);
+    expect(c).toMatch(/^la[0-9a-f]{30}$/);
   });
   it("evidenceHash ignores auditor raw payload (may hold floats)", () => {
     const rr: RuleResult = {

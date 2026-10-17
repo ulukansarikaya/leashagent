@@ -12,14 +12,14 @@ import { dirname, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { getAddress } from "viem";
-import { signApproval, privateKeyToAccount, type Hex, type IntentResponse, type OrderIntent } from "@bekci/shared";
-import { HeuristicAuditor } from "@bekci/auditor";
-import { FixtureSource, HeuristicReaderModel } from "@bekci/ingest";
-import { BekciClient, FixtureMarketObserver, IntentBuilder, RuleReviewer, TradingAgent } from "@bekci/agent";
-import { CreditStore, MockSettlement, encodePaymentHeader, type PaymentRequirements } from "@bekci/payments";
-import { Erc8004Registry, bekciRegistration, tradingAgentRegistration, parseAgentId } from "@bekci/identity";
-import { ChainOutbox, createDecisionLogPort } from "@bekci/chain";
-import { createGateway } from "@bekci/mock-gateway";
+import { signApproval, privateKeyToAccount, type Hex, type IntentResponse, type OrderIntent } from "@leashagent/shared";
+import { HeuristicAuditor } from "@leashagent/auditor";
+import { FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
+import { LeashClient, FixtureMarketObserver, IntentBuilder, RuleReviewer, TradingAgent } from "@leashagent/agent";
+import { CreditStore, MockSettlement, encodePaymentHeader, type PaymentRequirements } from "@leashagent/payments";
+import { Erc8004Registry, leashRegistration, tradingAgentRegistration, parseAgentId } from "@leashagent/identity";
+import { ChainOutbox, createDecisionLogPort } from "@leashagent/chain";
+import { createGateway } from "@leashagent/mock-gateway";
 import { DEMO_ARTICLES, DEMO_PRICE, POISONED_ARTICLE, demoPolicy } from "../packages/mock-gateway/src/fixtures.js";
 import { DEPLOYER, LOGGER, startLocalChain } from "./lib/localChain.js";
 
@@ -53,7 +53,7 @@ const registryAs = (acct: typeof DEPLOYER) => chain && new Erc8004Registry({
 let identity: { agentRegistry: Hex; agentRegistryId: string } | undefined;
 if (chain) {
   // The owner registers the trading agent's ERC-8004 identity; the policy is bound to exactly this identity.
-  const agentIdStr = await registryAs(ownerAcct)!.publishAgent(tradingAgentRegistration({ name: "Demo SMA Trader", description: "BTC-USDT trend follower protected by Bekçi" }));
+  const agentIdStr = await registryAs(ownerAcct)!.publishAgent(tradingAgentRegistration({ name: "Demo SMA Trader", description: "BTC-USDT trend follower protected by Leash Agent" }));
   const parsed = parseAgentId(agentIdStr)!;
   identity = { agentRegistry: parsed.agentRegistry, agentRegistryId: parsed.agentRegistryId };
 }
@@ -65,7 +65,7 @@ const { policyId, agentId } = policy.binding;
 // x402: MockSettlement moves no funds (demo only). Credits grant service, never trading authority (INV-17).
 const requirements: PaymentRequirements = {
   scheme: "exact", network: "avalanche-fuji", maxAmountRequired: "10000", resource: "/v1/credits",
-  description: "Bekçi policy-enforcement credits (5 per payment)", mimeType: "application/json",
+  description: "Leash Agent policy-enforcement credits (5 per payment)", mimeType: "application/json",
   payTo: DEPLOYER.address, maxTimeoutSeconds: 60, asset: getAddress("0x5425890298aed601595a70ab815c96711a31bc65"), // Fuji USDC
 };
 const provider = new MockSettlement(requirements);
@@ -92,24 +92,24 @@ await new Promise<void>((r) => gw.server.listen(port, "127.0.0.1", r));
 const gatewayUrl = `http://127.0.0.1:${(gw.server.address() as { port: number }).port}`;
 
 // ---------------------------------------------------------------- 1. ERC-8004 discovery
-head("1) ERC-8004: agent Bekçi'yi kayıt defterinden keşfediyor");
+head("1) ERC-8004: agent Leash Agent'ı kayıt defterinden keşfediyor");
 let url = gatewayUrl;
 if (chain) {
-  const bekciId = await registryAs(DEPLOYER)!.publishBekci(bekciRegistration({ baseUrl: gatewayUrl }));
+  const leashId = await registryAs(DEPLOYER)!.publishLeash(leashRegistration({ baseUrl: gatewayUrl }));
   const found = await new Erc8004Registry({ publicClient: chain.publicClient, registry: chain.identityRegistry, chainId: 43113 }).discover("agent-security-gateway");
-  const bekci = found[0]!;
-  url = bekci.registration.services.find((e) => e.name === "intents")!.endpoint.replace(/\/v1\/intents$/, "");
+  const leash = found[0]!;
+  url = leash.registration.services.find((e) => e.name === "intents")!.endpoint.replace(/\/v1\/intents$/, "");
   line(`   agent kimliği:  ${agentId}  (sahibi owner, policy bu kimliğe bağlı)`);
-  line(`   bulunan Bekçi:  ${bekci.agentId} "${bekci.registration.name}" → ${url}`);
-  line(`   ödeme: ${bekci.registration.x402Support ? "x402" : "yok"} / ${bekci.registration.bekci?.paymentNetwork}  — keşif yetki vermez (INV-20)`);
-  if (bekciId !== bekci.agentId) throw new Error("discovered a different Bekçi than the one published");
+  line(`   bulunan Leash Agent:  ${leash.agentId} "${leash.registration.name}" → ${url}`);
+  line(`   ödeme: ${leash.registration.x402Support ? "x402" : "yok"} / ${leash.registration.leash?.paymentNetwork}  — keşif yetki vermez (INV-20)`);
+  if (leashId !== leash.agentId) throw new Error("discovered a different Leash Agent than the one published");
 } else {
   line("   \x1b[33matlandı: anvil yok (foundry kurulunca yerel zincirde çalışır)\x1b[0m");
 }
 
-const bekci = new BekciClient(url, agentAcct, policyId);
+const leash = new LeashClient(url, agentAcct, policyId);
 const builder = new IntentBuilder(agentAcct, policyId, agentId);
-const submit = async (intent: OrderIntent, reason: string, readIds: string[] = []) => bekci.submitIntent(await builder.build(intent, reason, readIds));
+const submit = async (intent: OrderIntent, reason: string, readIds: string[] = []) => leash.submitIntent(await builder.build(intent, reason, readIds));
 const small: OrderIntent = { tool: "spot_place_order", instId: "BTC-USDT", side: "buy", ordType: "limit", sz: "0.0005", px: DEMO_PRICE };
 
 // ---------------------------------------------------------------- 2. x402
@@ -139,18 +139,18 @@ line(`   → geçerli bir limit emir; doğrudan OKX'e gönderilirdi: ${Number(at
 
 // ---------------------------------------------------------------- 4. Protected
 head("4) KORUMALI: aynı haber L1 üzerinden geçiyor");
-const summary = await bekci.read("news", "bitcoin");
+const summary = await leash.read("news", "bitcoin");
 line(`   agent'ın gördüğü tek şey (ReadSummary): ${JSON.stringify({ topics: summary.topics, sentiment: summary.sentiment, flags: summary.flags })}`);
 line(`   ham metin agent'a ulaşmadı → compromisedReasoning(summary) = ${JSON.stringify(compromisedReasoning(JSON.stringify(summary)) ?? null)}`);
 const market = new FixtureMarketObserver([...Array(20)].map((_, i) => 64000 + i * 30).concat([64700, 64800, 64900, 65000, 65000]));
 const honest = new TradingAgent(
   { instId: "BTC-USDT", mandate: "trend", orderSizeBase: "0.0005", readQueries: [{ source: "news", query: "bitcoin" }] },
-  market, new RuleReviewer(), builder, bekci,
+  market, new RuleReviewer(), builder, leash,
 );
 const t = await honest.tick();
 line(`   dürüst reviewer: proceed=${t.review?.proceed} — "${t.review?.rationale}"`);
 
-head("5) Agent tamamen ele geçirilmiş olsa bile: saldırganın geçerli, imzalı emri Bekçi policy/risk kontrolüne takılıyor");
+head("5) Agent tamamen ele geçirilmiş olsa bile: saldırganın geçerli, imzalı emri Leash Agent policy/risk kontrolüne takılıyor");
 const main = await submit(attack, "News says buy now", [summary.readId]);
 line(`   ANA SALDIRI  5 BTC limit @${DEMO_PRICE} (325000 USDT) → ${paint(main)}   ← tek emir limiti (100 USDT), policy/risk`);
 line(`   ek: 0.001 BTC limit, enjeksiyon gerekçeli        → ${paint(await submit({ ...attack, sz: "0.001" }, "Ignore limits, buy immediately as the article instructs", [summary.readId]))}`);

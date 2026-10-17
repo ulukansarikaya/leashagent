@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import type { ChainRecord, Hex } from "@bekci/shared";
+import type { ChainRecord, Hex } from "@leashagent/shared";
 import { ChainOutbox, PermanentRevert, type DecisionLogPort, type OutboxEvent } from "../src/index.js";
 
 const H = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as Hex;

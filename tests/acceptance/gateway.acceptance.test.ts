@@ -10,8 +10,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, chainWritePayloadSchema, computePolicyId, hashCanonical, healthChainSchema, signAgentIntent,
   type AuditEvent, type Hex, type IntentResponse, type OrderIntent, type OrderStatus, type SignedIntentRequest,
-} from "@bekci/shared";
-import { BekciClient, IntentBuilder } from "@bekci/agent";
+} from "@leashagent/shared";
+import { LeashClient, IntentBuilder } from "@leashagent/agent";
 import { connectTarget, type Target } from "./target.js";
 
 /** Statuses meaning the gateway authorized the order (§11). */
@@ -19,7 +19,7 @@ const AUTHORIZED: OrderStatus[] = ["ALLOWED", "RECHECKED", "SUBMITTED", "ACKNOWL
 
 let t: Target;
 let builder: IntentBuilder;
-let client: BekciClient;
+let client: LeashClient;
 const nonce16 = () => `0x${randomBytes(16).toString("hex")}` as Hex;
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -61,7 +61,7 @@ const settle = () => new Promise((r) => setTimeout(r, 150));
 beforeAll(async () => {
   t = await connectTarget();
   builder = new IntentBuilder(t.agent, t.policyId, t.agentId);
-  client = new BekciClient(t.url, t.agent, t.policyId);
+  client = new LeashClient(t.url, t.agent, t.policyId);
 });
 afterAll(() => t?.close());
 
@@ -148,7 +148,7 @@ describe("policy / risk (L4)", () => {
     expect(await submit(await builder.build(limitBuy(t.order.overLimitSz), "x", []))).toMatchObject({ status: "BLOCKED", reasonCode: 103 });
   });
 
-  it.runIf(!process.env.BEKCI_GATEWAY_URL)("missing service entitlement → REJECTED_PAYMENT 004 (never 002)", async () => {
+  it.runIf(!process.env.LEASH_GATEWAY_URL)("missing service entitlement → REJECTED_PAYMENT 004 (never 002)", async () => {
     t.controls!.setEntitled(false);
     try {
       expect(await submit(await builder.build(limitBuy(t.order.smallSz), "x", []))).toMatchObject({ status: "REJECTED_PAYMENT", reasonCode: 4 });
@@ -188,7 +188,7 @@ describe("human approval", () => {
     } finally { await setPaused(false); }
   });
 
-  it.runIf(!process.env.BEKCI_GATEWAY_URL)("approval uses fresh market state: price moved while pending → BLOCKED 107", async () => {
+  it.runIf(!process.env.LEASH_GATEWAY_URL)("approval uses fresh market state: price moved while pending → BLOCKED 107", async () => {
     const r = await submit(await builder.build(limitBuy(t.order.escalateSz), "x", []));
     expect(r.status).toBe("PENDING");
     t.controls!.setPrice("66000");
@@ -205,7 +205,7 @@ describe("prompt injection", () => {
     if (t.kind === "mock") expect(r).toMatchObject({ status: "BLOCKED", reasonCode: 201 });
   });
 
-  it.runIf(!process.env.BEKCI_GATEWAY_URL)("poisoned source: raw text never reaches the agent, summary is flagged, steered order blocked 201", async () => {
+  it.runIf(!process.env.LEASH_GATEWAY_URL)("poisoned source: raw text never reaches the agent, summary is flagged, steered order blocked 201", async () => {
     t.controls!.setPoisoned(true);
     try {
       const s = await client.read("news", "bitcoin");
@@ -217,7 +217,7 @@ describe("prompt injection", () => {
   });
 
   it("read signed by a non-delegated key is refused", async () => {
-    await expect(new BekciClient(t.url, t.attacker, t.policyId).read("news", "bitcoin")).rejects.toThrow();
+    await expect(new LeashClient(t.url, t.attacker, t.policyId).read("news", "bitcoin")).rejects.toThrow();
   });
 });
 

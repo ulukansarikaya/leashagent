@@ -1,4 +1,4 @@
-# Bekçi
+# Leash Agent
 
 Mimari: `SONPLAN.md`. Bu repo **Kişi 2** (ingest, agent, auditor, dashboard, injection demo, acceptance suite) ve
 **Kişi 3** (dondurulmuş `shared`, Avalanche kontratları, zincir istemcisi/outbox, x402, ERC-8004) kapsamlarını içerir.
@@ -14,10 +14,10 @@ Kişi 3 entegrasyon notları: [`docs/PERSON3_HANDOFF.md`](docs/PERSON3_HANDOFF.m
 | `packages/shared` | — | **Dondurulmuş, tek ortak paket.** §5 tipleri, `canonicalJson`, `policyId`/`agentId`/`clOrdId`/hash yardımcıları, EIP-712 (AgentIntent, AgentRead, ExecutionAuthorization, ApprovalDecision, PauseCommand), strict zod şemaları, `dec`, reason kodları, yürütme geçiş tablosu. Tip yeniden tanımlanmaz; değişiklik üç kişinin onayıyla. |
 | `packages/chain` | C / L7 | `PolicyRegistry` + `DecisionLog` (Solidity, Foundry testleri), Fuji deploy scripti, `PolicyChainClient`, `verifyPolicyDocument` (INV-11), L6 için zincir tabanlı `PolicyStateProvider`, kalıcı `ChainOutbox`. |
 | `packages/payments` | §21.2 | x402: kalıcı kredi defteri (1 ödeme → 5 kredi, `paymentRef` tek sefer), `purchaseCredits` (`POST /v1/credits`), facilitator + mock adaptör. |
-| `packages/identity` | §21.3 | ERC-8004: Bekçi/agent kayıt kartları, yayınlama + keşif. |
+| `packages/identity` | §21.3 | ERC-8004: Leash Agent/agent kayıt kartları, yayınlama + keşif. |
 | `packages/llm` | — | Araçsız, geçmişsiz tek-çağrı LLM istemcisi. |
 | `packages/ingest` | L1 | Fetcher (allowlist/timeout/boyut), sanitizer, reader model, talimat dedektörü, `ReadRecorder`, `DefaultIngestService`. Ham içerik L1'den çıkmaz. |
-| `packages/agent` | L2 | Anahtarsız piyasa gözlemcisi, SMA sinyali, LLM/kural reviewer, EIP-712 `IntentBuilder`, egress allowlist'li `BekciClient`. OKX anahtarı görürse ya da mock gateway'e bağlanırsa başlamaz. |
+| `packages/agent` | L2 | Anahtarsız piyasa gözlemcisi, SMA sinyali, LLM/kural reviewer, EIP-712 `IntentBuilder`, egress allowlist'li `LeashClient`. OKX anahtarı görürse ya da mock gateway'e bağlanırsa başlamaz. |
 | `packages/auditor` | L4 adaptörü | `GenericLlmAuditor`, `JevAuditor` (§19.4 doğrulanmadı), `HeuristicAuditor`. Timeout/şema dışı → `AuditorUnavailable` (→ `PENDING 302`). |
 | `packages/dashboard` | L7 UI | Yalnızca HTTP + SSE. `?policyId=0x…` ile açılır. Owner işlemleri cüzdanda EIP-712 ile imzalanır. |
 | `packages/mock-gateway` | — | **SADECE TEST/DEMO.** Offline demo, unit/integration test, injection demo ve acceptance suite'in kendini doğrulaması için. OKX'e yazmaz; hiçbir üretim paketi ona bağımlı değildir (testle zorlanır). |
@@ -43,7 +43,7 @@ npm run demo:attack -- --serve   # + dashboard
 **Gerçek E2E demo** — agent ve dashboard Kişi 1'in gateway'ine bağlanır:
 
 ```bash
-BEKCI_URL=https://<gateway> AGENT_AUTH_KEY=0x… BEKCI_POLICY_ID=0x… AGENT_ID=… npm run agent
+LEASH_URL=https://<gateway> AGENT_AUTH_KEY=0x… LEASH_POLICY_ID=0x… AGENT_ID=… npm run agent
 # dashboard: gateway'in sunduğu adreste ?policyId=0x…
 ```
 
@@ -55,12 +55,12 @@ BEKCI_URL=https://<gateway> AGENT_AUTH_KEY=0x… BEKCI_POLICY_ID=0x… AGENT_ID=
 Testler gateway ile yalnızca HTTP üzerinden konuşur; aynı suite mock'a ve gerçek gateway'e karşı çalışır:
 
 ```bash
-BEKCI_GATEWAY_URL=https://<gateway> BEKCI_AGENT_KEY=0x… BEKCI_OWNER_KEY=0x… \
-BEKCI_POLICY_ID=0x… BEKCI_AGENT_ID=… BEKCI_TEST_ESCALATE_SZ=… npm run test:acceptance
+LEASH_GATEWAY_URL=https://<gateway> LEASH_AGENT_KEY=0x… LEASH_OWNER_KEY=0x… \
+LEASH_POLICY_ID=0x… LEASH_AGENT_ID=… LEASH_TEST_ESCALATE_SZ=… npm run test:acceptance
 ```
 
 Gerçek gateway'de OKX **demo** hesabına bid fiyatında küçük limit emirler gönderilir. İsteğe bağlı:
-`BEKCI_TEST_INST`, `BEKCI_TEST_PX`, `BEKCI_TEST_SMALL_SZ`, `BEKCI_TEST_OVERLIMIT_SZ`.
+`LEASH_TEST_INST`, `LEASH_TEST_PX`, `LEASH_TEST_SMALL_SZ`, `LEASH_TEST_OVERLIMIT_SZ`.
 
 | Senaryo | Beklenen |
 |---|---|
@@ -93,7 +93,7 @@ Tam davranış gerçek gateway'e karşı acceptance suite ile doğrulanır.
 Dashboard yalnızca §9 HTTP/SSE uç noktalarını okur. Zincir kanıtı için gateway'in (Kişi 1) uyması gereken şekil
 `packages/shared`'de tanımlıdır; ikisi de oradan import eder:
 
-| Nerede | Tip / şema (`@bekci/shared`) | Şekil |
+| Nerede | Tip / şema (`@leashagent/shared`) | Şekil |
 |---|---|---|
 | `GET /v1/health` → `chain` | `HealthChainStatus` / `healthChainSchema` | `{ outbox: { pending, submitted, confirmed, dead } }` (`ChainOutbox.stats()`) veya `"disabled"` |
 | `chain_write` audit olayı → `payload` | `ChainWritePayload` / `chainWritePayloadSchema` | `{ state: "pending" \| "confirmed" \| "dead" \| "retry", kind?, eventSeq?, txHash?, error?, attempts? }` |
@@ -109,8 +109,8 @@ Anvil kuruluysa demo yerel bir zincir açar (chainId 43113), üzerine Kişi 3'ü
 ve gerçek `DecisionLog` kontratını deploy eder. Anvil yoksa 1. ve 7. adımlar atlanır, kalan adımlar çalışır.
 x402 `MockSettlement` ile yapılır: para hareket etmez, yalnızca demo içindir.
 
-1. **ERC-8004:** owner, agent kimliğini kaydeder (policy bu kimliğe bağlanır); Bekçi kendi kartını yayınlar; agent
-   `discover("agent-security-gateway")` ile Bekçi'yi ve uç noktasını bulur. Keşif yetki vermez (INV-20).
+1. **ERC-8004:** owner, agent kimliğini kaydeder (policy bu kimliğe bağlanır); Leash Agent kendi kartını yayınlar; agent
+   `discover("agent-security-gateway")` ile Leash Agent'ı ve uç noktasını bulur. Keşif yetki vermez (INV-20).
 2. **x402:** kredisiz emir `REJECTED_PAYMENT 004` → `POST /v1/credits` `402` (ödeme gereksinimleri) → delegasyonsuz
    ödeyici `403 payer_not_delegated` → agent öder `200` (5 kredi) → aynı ödeme tekrar `409 duplicate_payment`.
 3. **Korumasız:** agent zehirli haberi ham okur → geçerli `5 BTC limit @65000` emri doğrudan borsaya gider.

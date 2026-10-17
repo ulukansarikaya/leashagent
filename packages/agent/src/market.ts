@@ -1,4 +1,4 @@
-import type { Dec, EpochSec } from "@bekci/shared";
+import type { Dec, EpochSec } from "@leashagent/shared";
 
 export type Candle = { ts: EpochSec; open: Dec; high: Dec; low: Dec; close: Dec; vol: Dec };
 export type MarketView = { instId: string; last: Dec; bid: Dec; ask: Dec; candles: Candle[]; fetchedAt: EpochSec };

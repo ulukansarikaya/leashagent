@@ -1,10 +1,10 @@
 import { decodeEventLog, getAddress, type Account, type Address, type Chain, type PublicClient, type WalletClient } from "viem";
-import type { Hex, ServiceDiscovery } from "@bekci/shared";
+import type { Hex, ServiceDiscovery } from "@leashagent/shared";
 import { formatAgentId } from "./agentId.js";
 import { loadRegistration, registrationSchema, toDataUri, type ForeignRegistration, type Registration } from "./metadata.js";
 
 /**
- * Subset of the ERC-8004 IdentityRegistry Bekçi uses — verified against erc-8004/erc-8004-contracts abis/IdentityRegistry.json.
+ * Subset of the ERC-8004 IdentityRegistry Leash Agent uses — verified against erc-8004/erc-8004-contracts abis/IdentityRegistry.json.
  * Avalanche Fuji deployment: FUJI_IDENTITY_REGISTRY.
  */
 export const FUJI_IDENTITY_REGISTRY = "0x8004A818BFB912233c491871b3d84c89A494BD9e" as const;
@@ -26,7 +26,7 @@ export const identityRegistryAbi = [
 
 export type ResolvedAgent = { agentId: string; agentRegistryId: string; owner: Hex; registration: ForeignRegistration };
 
-type Kind = Registration["bekci"]["kind"];
+type Kind = Registration["leash"]["kind"];
 
 /**
  * ERC-8004 discovery adapter. Discovery/metadata only — INV-20: nothing returned here is ever runtime
@@ -47,7 +47,7 @@ export class Erc8004Registry implements ServiceDiscovery {
     },
   ) {}
 
-  publishBekci(metadata: unknown): Promise<string> {
+  publishLeash(metadata: unknown): Promise<string> {
     return this.publish(metadata, "agent-security-gateway");
   }
 
@@ -60,7 +60,7 @@ export class Erc8004Registry implements ServiceDiscovery {
     const { walletClient, account, chain, publicClient, registry } = this.opts;
     if (!walletClient || !account) throw new Error("publishing requires walletClient + account");
     const reg = registrationSchema.parse(metadata);
-    if (reg.bekci.kind !== kind) throw new Error(`metadata kind must be ${kind}`);
+    if (reg.leash.kind !== kind) throw new Error(`metadata kind must be ${kind}`);
     const uri = this.opts.upload ? await this.opts.upload(reg) : toDataUri(reg);
 
     const hash = await walletClient.writeContract({
@@ -97,12 +97,13 @@ export class Erc8004Registry implements ServiceDiscovery {
   }
 
   /**
-   * Scan Registered events and return identities of a given Bekçi kind (e.g. find gateways).
+   * Scan Registered events and return identities of a given Leash Agent kind (e.g. find gateways).
    * Public RPCs cap log ranges, so the scan is chunked. Default window: the last 200k blocks.
    */
   async discover(kind: Kind, opts: { fromBlock?: bigint; toBlock?: bigint; chunk?: bigint } = {}): Promise<ResolvedAgent[]> {
     const pub = this.opts.publicClient;
-    const toBlock = opts.toBlock ?? (await pub.getBlockNumber());
+    // cacheTime: 0 — a cached (stale) head would silently drop the newest registrations from the scan.
+    const toBlock = opts.toBlock ?? (await pub.getBlockNumber({ cacheTime: 0 }));
     const fromBlock = opts.fromBlock ?? (toBlock > 200_000n ? toBlock - 200_000n : 0n);
     const chunk = opts.chunk ?? 2_000n;
     const ids: bigint[] = [];
@@ -117,7 +118,7 @@ export class Erc8004Registry implements ServiceDiscovery {
     for (const id of ids) {
       try {
         const r = await this.resolve(id.toString());
-        if (r.registration.bekci?.kind === kind) out.push(r);
+        if (r.registration.leash?.kind === kind) out.push(r);
       } catch {
         // invalid/unreachable metadata is skipped, never trusted
       }
