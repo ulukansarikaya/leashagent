@@ -5,11 +5,14 @@
  *   BEKCI_GATEWAY_URL=https://… BEKCI_AGENT_KEY=0x… BEKCI_OWNER_KEY=0x… \
  *   BEKCI_POLICY_ID=0x… BEKCI_AGENT_ID=… npm run test:acceptance
  */
+import { randomBytes } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import type { Account } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { privateKeyToAccount, type Hex } from "@bekci/shared";
 import { HeuristicAuditor } from "@bekci/auditor";
 import { HeuristicReaderModel, type ContentSource, type RawContent } from "@bekci/ingest";
+import { ChainOutbox, type DecisionLogPort } from "@bekci/chain";
 import { createGateway } from "@bekci/mock-gateway";
 import { BENIGN_ARTICLE, DEMO_PRICE, POISONED_ARTICLE, demoPolicy } from "../../packages/mock-gateway/src/fixtures.js";
 
@@ -67,6 +70,12 @@ async function mockTarget(): Promise<Target> {
     },
   };
   const policy = demoPolicy(agent.address, owner.address);
+  // In-memory DecisionLog port so the chain-evidence contract checks run against the mock too.
+  const port: DecisionLogPort = {
+    isApplied: async () => false, simulate: async () => {},
+    send: async () => `0x${randomBytes(32).toString("hex")}`, waitForReceipt: async () => "success",
+  };
+  let outbox: ChainOutbox;
   const gw = createGateway({
     policy, source, auditor: new HeuristicAuditor(), reader: new HeuristicReaderModel(),
     price: () => price,
@@ -76,7 +85,10 @@ async function mockTarget(): Promise<Target> {
       consumeReservedCredit: async () => {},
       releaseReservedCredit: async () => {},
     },
+    chain: { enqueue: (r) => outbox.enqueue(r), stats: () => outbox.stats() },
   });
+  outbox = new ChainOutbox(new DatabaseSync(":memory:"), port, { onEvent: (e) => gw.chainEvent(e) });
+  outbox.start(50);
   await new Promise<void>((r) => gw.server.listen(0, "127.0.0.1", r));
   return {
     kind: "mock",
@@ -90,6 +102,6 @@ async function mockTarget(): Promise<Target> {
       setPoisoned: (on) => { poisoned = on; },
       setEntitled: (on) => { entitled = on; },
     },
-    close: () => new Promise((r) => { gw.server.closeAllConnections(); gw.server.close(() => r()); }),
+    close: () => new Promise((r) => { outbox.stop(); gw.server.closeAllConnections(); gw.server.close(() => r()); }),
   };
 }

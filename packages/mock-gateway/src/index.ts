@@ -12,13 +12,13 @@ import { randomBytes } from "node:crypto";
 import {
   APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, Reason, bindingIsConsistent, computeAuthHash, computeEvidenceHash, decCmp, decMul, hashCanonical,
   recoverAgentIntentSigner, signedIntentRequestSchema,
-  type Auditor, type AuditEvent, type ChainRecord, type ChainVerdict, type Decision, type DecisionKind, type ExecStatus,
+  type Auditor, type AuditEvent, type ChainRecord, type ChainOutboxStats, type ChainWritePayload, type HealthChainStatus, type ChainVerdict, type Decision, type DecisionKind, type ExecStatus,
   type ExecutionAuthorization, type Hex, type IntentResponse, type NormalizedOrder, type OrderStatus,
   type PaymentEntitlement, type PolicyBinding, type ReadRecord, type RuleResult, type RuleViolation,
   type SignedApproval, type SignedIntentRequest, type SignedPauseCommand,
 } from "@bekci/shared";
 import { purchaseCredits, type CreditStore, type SettlementProvider } from "@bekci/payments";
-import type { OutboxEvent, OutboxStats } from "@bekci/chain";
+import type { OutboxEvent } from "@bekci/chain";
 import { AuditorUnavailable } from "@bekci/auditor";
 import { DefaultIngestService, IngestError, InMemoryReadRecorder, type ContentSource, type ReaderModel } from "@bekci/ingest";
 
@@ -54,7 +54,7 @@ export type GatewayDeps = {
   /** x402 purchase for POST /v1/credits (Person 3's purchaseCredits + a SettlementProvider). */
   credits?: { store: CreditStore; provider: SettlementProvider };
   /** Person 3's ChainOutbox (or anything with the same shape); feed its events to `chainEvent`. */
-  chain?: { enqueue(r: ChainRecord): Promise<void>; stats(): OutboxStats };
+  chain?: { enqueue(r: ChainRecord): Promise<void>; stats(): ChainOutboxStats };
   dashboardDir?: string;
   /** Local-demo only: accept owner actions with signature "0x". */
   insecureOwner?: boolean;
@@ -101,11 +101,13 @@ export function createGateway(d: GatewayDeps) {
   const policyHash = hashCanonical(p);
 
   /** Durable chain evidence: local enqueue only; the decision path never waits on the chain (INV-15). */
+  const chainWrite = (payload: ChainWritePayload, requestId?: string) => audit("chain_write", payload, requestId);
   function toChain(r: ChainRecord) {
     if (!d.chain) return;
+    const eventSeq = r.kind === "execution" ? r.eventSeq : undefined;
     void d.chain.enqueue(r).then(
-      () => audit("chain_write", { state: "pending", kind: r.kind, eventSeq: r.kind === "execution" ? r.eventSeq : undefined }, r.requestId),
-      (err) => audit("chain_write", { state: "dead", kind: r.kind, error: String(err) }, r.requestId),
+      () => chainWrite({ state: "pending", kind: r.kind, eventSeq }, r.requestId),
+      (err) => chainWrite({ state: "dead", kind: r.kind, eventSeq, error: String(err).slice(0, 500) }, r.requestId),
     );
   }
   function logDecision(e: Entry, verdict: ChainVerdict, reasonCode: number, auth?: Omit<ExecutionAuthorization, "signature">) {
@@ -365,7 +367,7 @@ export function createGateway(d: GatewayDeps) {
         return send(200, {
           gateway: "mock", testOnly: true, policyId, auditor: p.auditorEnabled ? "enabled" : "disabled", paused,
           credits: d.credits ? "x402" : entitlement ? "configured" : "disabled",
-          chain: d.chain ? { outbox: d.chain.stats() } : "disabled",
+          chain: (d.chain ? { outbox: d.chain.stats() } : "disabled") satisfies HealthChainStatus,
         });
       }
       if (req.method === "GET" && url.pathname === "/v1/events") {
@@ -392,11 +394,12 @@ export function createGateway(d: GatewayDeps) {
 
   /** Wire ChainOutbox `onEvent` here so chain evidence shows up in the audit stream and dashboard. */
   function chainEvent(ev: OutboxEvent) {
-    if (ev.type === "retry") return audit("chain_write", { state: "retry", attempts: ev.attempts, error: ev.error });
+    if (ev.type === "retry") return chainWrite({ state: "retry", attempts: ev.attempts, error: ev.error.slice(0, 500) });
     const r = ev.record;
-    audit("chain_write", ev.type === "confirmed"
-      ? { state: "confirmed", kind: r.kind, eventSeq: r.kind === "execution" ? r.eventSeq : undefined, txHash: ev.txHash }
-      : { state: "dead", kind: r.kind, eventSeq: r.kind === "execution" ? r.eventSeq : undefined, error: ev.error }, r.requestId);
+    const eventSeq = r.kind === "execution" ? r.eventSeq : undefined;
+    chainWrite(ev.type === "confirmed"
+      ? { state: "confirmed", kind: r.kind, eventSeq, txHash: (ev.txHash ?? undefined) as Hex | undefined }
+      : { state: "dead", kind: r.kind, eventSeq, error: ev.error.slice(0, 500) }, r.requestId);
   }
 
   return {

@@ -451,3 +451,31 @@ export interface PolicyChainClient {
 export interface DecisionChainWriter {
   enqueue(r: ChainRecord): Promise<void>;
 }
+
+// ---------- Chain evidence status: gateway → dashboard (§6.7, §9 GET /v1/health) ----------
+// Additive contract agreed with Person 1 (gateway) for Person 2 (dashboard).
+
+/** `ChainOutbox` row states (Person 3's outbox); same keys as `@bekci/chain` OutboxStats. */
+export const CHAIN_OUTBOX_STATES = ["pending", "submitted", "confirmed", "dead"] as const;
+export type ChainOutboxState = (typeof CHAIN_OUTBOX_STATES)[number];
+export type ChainOutboxStats = Record<ChainOutboxState, number>;
+
+/** `GET /v1/health` → `chain`: outbox counters, or "disabled" when no chain evidence is configured. */
+export type HealthChainStatus = { outbox: ChainOutboxStats } | "disabled";
+
+/**
+ * Payload of an `AuditEvent` with `type: "chain_write"`.
+ * - `pending`: record enqueued (event carries the record's `requestId`)
+ * - `confirmed` / `dead`: from `ChainOutbox` `onEvent` (`requestId` set)
+ * - `retry`: transient failure; the outbox does not say which record, so no `kind`/`requestId`
+ */
+export const CHAIN_WRITE_STATES = ["pending", "confirmed", "dead", "retry"] as const;
+export type ChainWriteState = (typeof CHAIN_WRITE_STATES)[number];
+export type ChainWritePayload = {
+  state: ChainWriteState;
+  kind?: ChainRecord["kind"];
+  eventSeq?: number;   // execution records only
+  txHash?: Hex;        // confirmed only
+  error?: string;      // dead / retry; no sensitive data
+  attempts?: number;   // retry only
+};

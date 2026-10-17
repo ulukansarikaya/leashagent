@@ -88,15 +88,20 @@ fill'ler executor'dan `execution` olayı olarak gelir. Mock risk rezervasyonunu 
 §25.3 sırasıyla rezerve edilir, BLOCK/PENDING'de bırakılır, yalnızca yetki verilirse tüketilir.
 Tam davranış gerçek gateway'e karşı acceptance suite ile doğrulanır.
 
-## Dashboard ↔ gateway sözleşmesi (Kişi 1 için)
+## Dashboard ↔ gateway sözleşmesi: zincir kanıtı
 
-Dashboard yalnızca §9 HTTP/SSE uç noktalarını okur. Görev 2'nin beklediği, planda alan düzeyinde tanımlı olmayan iki ayrıntı:
+Dashboard yalnızca §9 HTTP/SSE uç noktalarını okur. Zincir kanıtı için gateway'in (Kişi 1) uyması gereken şekil
+`packages/shared`'de tanımlıdır; ikisi de oradan import eder:
 
-- `GET /v1/health` → `chain: { outbox: { pending, submitted, confirmed, dead } }` (Kişi 3'ün `ChainOutbox.stats()`), zincir kapalıysa `chain: "disabled"`.
-- `chain_write` audit olayları: `payload = { state: "pending" | "confirmed" | "dead" | "retry", kind: "decision" | "execution", eventSeq?, txHash?, error? }`,
-  `requestId` kaydın emrine ait. Kaynak: `ChainOutbox` `onEvent` + enqueue.
+| Nerede | Tip / şema (`@bekci/shared`) | Şekil |
+|---|---|---|
+| `GET /v1/health` → `chain` | `HealthChainStatus` / `healthChainSchema` | `{ outbox: { pending, submitted, confirmed, dead } }` (`ChainOutbox.stats()`) veya `"disabled"` |
+| `chain_write` audit olayı → `payload` | `ChainWritePayload` / `chainWritePayloadSchema` | `{ state: "pending" \| "confirmed" \| "dead" \| "retry", kind?, eventSeq?, txHash?, error?, attempts? }` |
 
-`REJECTED_PAYMENT` satırları `decision` olayındaki `reasonCode: 4`'ten türetilir.
+Kurallar: `pending` kayıt kuyruğa eklenince, `confirmed`/`dead` `ChainOutbox` `onEvent`'ten gelir ve olayın `requestId`'si
+kaydın emridir; `retry` hangi kayıt olduğunu bilmez, `requestId`/`kind` taşımaz; `confirmed` her zaman `txHash` içerir.
+Örnek uygulama: `packages/mock-gateway/src/index.ts` (`toChain`, `chainEvent`). Acceptance suite iki şekli de gerçek
+gateway'e karşı doğrular. `REJECTED_PAYMENT` satırları `decision` olayındaki `reasonCode: 4`'ten türetilir.
 
 ## Demo (`scripts/injection-demo.ts`, §23)
 
