@@ -1,0 +1,73 @@
+{
+  "network": "avalanche-fuji",
+  "chainId": 43113,
+  "rpcUrl": "https://api.avax-test.network/ext/bc/C/rpc",
+  "explorer": "https://testnet.snowtrace.io",
+  "contracts": {
+    "PolicyRegistry": {
+      "address": "0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F",
+      "deployTx": "0xc76c0658ea660e51080938a925942d3b0d77f4c1e8857250f4734e6cd221c867",
+      "deployBlock": 59597761
+    },
+    "DecisionLog": {
+      "address": "0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96",
+      "deployTx": "0xb7241d47f93cd902abad4633ab04a31ee55c7132e98dd1866be103f3d1ea2ad9",
+      "deployBlock": 59597764
+    }
+  },
+  "roles": {
+    "decisionLogOwner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
+    "decisionLogLogger": "0x62CA5659C4593846570a60A4d92b942863Bf7F8B"
+  },
+  "erc8004": {
+    "identityRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    "reputationRegistry": "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+  },
+  "x402": {
+    "facilitator": "https://facilitator.payai.network",
+    "network": "avalanche-fuji",
+    "asset": "0x5425890298aed601595a70AB815c96711a31Bc65",
+    "assetName": "USD Coin",
+    "assetVersion": "2",
+    "assetDecimals": 6
+  },
+  "identities": {
+    "bekci": {
+      "agentId": "eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:266",
+      "agentRegistryId": "266",
+      "owner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
+      "tx": "0x7948b79b4a1d6a1b001c18dd1820e7f4fac245e65b8d99f8abfd501dd4d14eec"
+    },
+    "tradingAgent": {
+      "agentId": "eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:267",
+      "agentRegistryId": "267",
+      "owner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
+      "tx": "0xd52c299b585bea274d75818c8480cad6a34892a0b5b0e8b23254f9e40d7960ac"
+    }
+  },
+  "demoPolicy": {
+    "policyId": "0xf5486eac77e956d3290c78f3cc53afc7828bd806069cf33e1f4fa2a7a4286e50",
+    "owner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
+    "agentAuthAddress": "0x1A125c71553599cfBc874b982DC3511Cf66fF12a",
+    "policyURI": "data:… (see policies/<policyId>.json)",
+    "policyHash": "0xb6319f3a833a2b4b60b3cc24cc784a42e069dd4155201d268b9644fbcdddd9a6",
+    "version": 1
+  },
+  "finality": {
+    "measuredAt": "2026-10-17T12:24:30.841Z",
+    "rpc": "public Fuji RPC",
+    "setPaused": {
+      "samples": 10,
+      "medianMs": 4333,
+      "minMs": 2472,
+      "maxMs": 5560
+    },
+    "logDecision": {
+      "samples": 5,
+      "medianMs": 3105,
+      "minMs": 2911,
+      "maxMs": 5263
+    },
+    "demoPolicyPausedAfter": false
+  }
+}

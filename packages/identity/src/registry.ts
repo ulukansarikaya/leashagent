@@ -80,6 +80,21 @@ export class Erc8004Registry implements ServiceDiscovery {
     throw new Error("Registered event not found");
   }
 
+  /** Owner-only: replace an identity's registration card (e.g. once the gateway URL is known). Returns tx hash. */
+  async updateRegistration(agentRegistryId: string, metadata: unknown): Promise<Hex> {
+    const { walletClient, account, chain, publicClient, registry } = this.opts;
+    if (!walletClient || !account) throw new Error("updating requires walletClient + account");
+    const reg = registrationSchema.parse(metadata);
+    const uri = this.opts.upload ? await this.opts.upload(reg) : toDataUri(reg);
+    const hash = await walletClient.writeContract({
+      address: registry, abi: identityRegistryAbi, functionName: "setAgentURI",
+      args: [BigInt(agentRegistryId), uri], account, chain: chain ?? null,
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error("setAgentURI reverted");
+    return hash;
+  }
+
   async resolve(agentRegistryId: string): Promise<ResolvedAgent> {
     const { publicClient, registry } = this.opts;
     const id = BigInt(agentRegistryId);

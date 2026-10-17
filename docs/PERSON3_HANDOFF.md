@@ -2,14 +2,32 @@
 
 Status: built, tested (87 TS + 35 Solidity tests) and **deployed to Avalanche Fuji**.
 
-| Contract | Fuji address |
+Everything public about the deployment is in **`packages/chain/deployments/fuji.json`** (also exported as
+`FUJI_DEPLOYMENT` from `@bekci/chain`); plain ABI JSON for the dashboard is in `packages/chain/deployments/abi/`.
+
+| What | Fuji |
 |---|---|
-| PolicyRegistry | [`0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F`](https://testnet.snowtrace.io/address/0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F) |
-| DecisionLog | [`0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96`](https://testnet.snowtrace.io/address/0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96) |
+| PolicyRegistry (source verified) | [`0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F`](https://testnet.snowtrace.io/address/0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F) |
+| DecisionLog (source verified) | [`0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96`](https://testnet.snowtrace.io/address/0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96) |
 | DecisionLog LOGGER | `0x62CA5659C4593846570a60A4d92b942863Bf7F8B` |
 | ERC-8004 IdentityRegistry (official) | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
+| Bekçi identity | `eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:266` (card URL is a placeholder until the gateway is hosted) |
+| Demo trading-agent identity | `eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:267` |
+| **Demo policy** | `0xf5486eac77e956d3290c78f3cc53afc7828bd806069cf33e1f4fa2a7a4286e50` — owner `0xCD275A6da96e4d4cE6b04025B63315A636fbE91d`, agent key `0x1A125c71553599cfBc874b982DC3511Cf66fF12a`, document in `deployments/policies/` |
+| Measured confirmation (public RPC) | setPaused median 4333 ms, logDecision median 3105 ms |
 
-Live smoke test: `npx tsx --env-file=.env scripts/fuji-smoke.ts` — creates/reuses a demo policy, verifies its hash against the chain (tampered doc → `hash_mismatch`), and writes decision + executions through the outbox.
+Scripts (all need the local `.env`):
+- `scripts/fuji-smoke.ts`: create/verify a policy and write evidence through the outbox.
+- `scripts/fuji-publish-identities.ts`: publish identities (idempotent).
+  Set `BEKCI_PUBLIC_URL` and call `Erc8004Registry.updateRegistration("266", bekciRegistration({ baseUrl }))` once the gateway has a URL.
+- `scripts/fuji-demo-policy.ts`: create/update the demo policy. To delegate to Person 2's agent, put **their agent's
+  public address** in `AGENT_AUTH_ADDRESS` and re-run (setDelegation + setPolicy). Never share private keys.
+- `scripts/fuji-finality.ts`: re-measure latency.
+
+**Person 1 — PolicyLoader in one call:** `loadVerifiedPolicy(createPolicyChainClient(pub, FUJI_DEPLOYMENT.contracts.PolicyRegistry.address), policyId)`
+→ `{ ok, policy, record }` or `{ ok:false, reason }` (⇒ BLOCK 003). `record.paused` is returned, not treated as failure.
+For `/v1/credits`, `createPolicyDelegationResolver(client)` is the `delegations` dependency of `purchaseCredits`.
+
 Deployer/logger keys are testnet-only and live in the local, gitignored `.env` of Person 3.
 
 ## Setup
@@ -82,7 +100,8 @@ import { agentIdMatchesBinding } from "@bekci/identity";
 ## Still open
 
 - [x] Fuji deploy of our contracts (`scripts/deploy-fuji.sh`).
-- [ ] Publish Bekçi + demo trading agent on the Fuji ERC-8004 registry (needs the funded wallet).
+- [x] Bekçi + demo trading agent published on the Fuji ERC-8004 registry.
+- [ ] Update Bekçi's card with the real gateway URL once Person 1 hosts it.
 - [ ] Optional: a real paid x402 settle needs Fuji USDC on the agent wallet (Circle faucet); the demo can keep
       `MockSettlement`.
 - [ ] Credits are minted right after settlement in the same process; a crash between settle and mint loses that

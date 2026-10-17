@@ -110,3 +110,80 @@ export function createChainPolicyStateProvider(client: PolicyChainClient) {
     },
   };
 }
+
+const MAX_POLICY_BYTES = 64 * 1024;
+
+/**
+ * Fetch the policy JSON behind `policyURI`. Supports `data:application/json;base64,…` and `https://` (no redirects,
+ * 10 s timeout, 64 KiB cap). The result is untrusted until `verifyPolicyDocument` checks it against the chain hash.
+ */
+export async function fetchPolicyDocument(uri: string, fetchImpl: typeof fetch = fetch): Promise<unknown> {
+  let text: string;
+  if (uri.startsWith("data:application/json;base64,")) {
+    text = Buffer.from(uri.slice("data:application/json;base64,".length), "base64").toString("utf8");
+  } else if (uri.startsWith("https://")) {
+    const res = await fetchImpl(uri, { signal: AbortSignal.timeout(10_000), redirect: "error" });
+    if (!res.ok) throw new Error(`policy fetch HTTP ${res.status}`);
+    text = await res.text();
+  } else {
+    throw new Error("unsupported policyURI scheme");
+  }
+  if (text.length > MAX_POLICY_BYTES) throw new Error("policy document too large");
+  return JSON.parse(text);
+}
+
+export type LoadedPolicy =
+  | { ok: true; policy: Policy; record: PolicyRecord }
+  | {
+      ok: false;
+      reason: "unknown_policy" | "chain_unavailable" | "fetch_failed" | "revoked" | "expired" |
+        Exclude<PolicyVerification, { ok: true }>["reason"];
+    };
+
+/**
+ * L4 PolicyLoader core (§6.4 step 2, INV-11): read PolicyRegistry, fetch the document, verify hash/version/binding/
+ * delegation, and check revocation/expiry. `paused` is NOT a failure here — it is returned in `record.paused` so L4 can
+ * still allow a verified protective cancel. Any failure ⇒ caller must BLOCK 003 for risk-increasing orders.
+ * Caching (short TTL) is the caller's job.
+ */
+export async function loadVerifiedPolicy(
+  client: PolicyChainClient,
+  policyId: Hex,
+  opts: { fetchImpl?: typeof fetch; now?: EpochSec } = {},
+): Promise<LoadedPolicy> {
+  let record: PolicyRecord;
+  try {
+    record = await client.getPolicy(policyId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: /UnknownPolicy/.test(msg) ? "unknown_policy" : "chain_unavailable" };
+  }
+  let doc: unknown;
+  try {
+    doc = await fetchPolicyDocument(record.policyURI, opts.fetchImpl);
+  } catch {
+    return { ok: false, reason: "fetch_failed" };
+  }
+  const v = verifyPolicyDocument(policyId, doc, record);
+  if (!v.ok) return v;
+  if (record.revoked) return { ok: false, reason: "revoked" };
+  if (!delegationActive(record, opts.now ?? Math.floor(Date.now() / 1000))) return { ok: false, reason: "expired" };
+  return { ok: true, policy: v.policy, record };
+}
+
+/**
+ * Chain-backed resolver for `@bekci/payments` purchaseCredits (structurally matches its DelegationResolver):
+ * only a fully verified, active policy yields a delegation; anything else ⇒ undefined / inactive.
+ */
+export function createPolicyDelegationResolver(client: PolicyChainClient, opts: { fetchImpl?: typeof fetch } = {}) {
+  return {
+    async activeDelegation(policyId: Hex) {
+      const l = await loadVerifiedPolicy(client, policyId, opts);
+      if (l.ok) return { agentId: l.policy.binding.agentId, agentAuthAddress: l.policy.agentAuthAddress, active: true };
+      if (l.reason === "revoked" || l.reason === "expired") {
+        return { agentId: "", agentAuthAddress: "0x0000000000000000000000000000000000000000" as Hex, active: false };
+      }
+      return undefined;
+    },
+  };
+}

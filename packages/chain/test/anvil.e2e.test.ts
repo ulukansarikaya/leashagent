@@ -15,7 +15,10 @@ import {
 } from "@bekci/shared";
 import {
   ChainOutbox,
+  FUJI_DEPLOYMENT,
   createChainPolicyStateProvider,
+  createPolicyDelegationResolver,
+  loadVerifiedPolicy,
   createDecisionLogPort,
   createPolicyChainClient,
   decisionLogAbi,
@@ -118,6 +121,57 @@ run("chain e2e (anvil)", () => {
     const aw = createWalletClient({ account: attacker, chain, transport: http() });
     await expect(aw.writeContract({ address: registry, abi: policyRegistryAbi, functionName: "setPaused", args: [policyId, false] }))
       .rejects.toThrow();
+  });
+
+  it("loadVerifiedPolicy: verified, tampered, unfetchable, revoked, expired, unknown", async () => {
+    const w = createWalletClient({ account: owner, chain, transport: http() });
+    const client = createPolicyChainClient(pub, registry);
+    const agentRegistry = "0x8004000000000000000000000000000000000002" as Hex;
+    const accountRef = computeAccountRef("okx-loader-test");
+    const policyId = computePolicyId(owner.address, accountRef, agentRegistry, "7");
+    const now = Math.floor(Date.now() / 1000);
+    const policy: Policy = {
+      policyVersion: 1,
+      binding: { policyId, owner: owner.address, accountRef, agentRegistry, agentRegistryId: "7", agentId: "agent-7" },
+      agentAuthAddress: agentAuth.address, delegationValidUntil: now + 3600,
+      mandate: "m", allowedInstruments: ["BTC-USDT"], allowedTools: ["spot_place_order"], forbiddenTools: [],
+      limits: { maxOrderNotionalUsdt: "1", maxOpenNotionalUsdt: "1", maxOrdersPerMinute: 1, maxDailyLossUsdt: "1",
+        maxPriceDeviationBps: 1, marketSlippageBufferBps: 1, escalateAboveUsdt: "1" },
+      freshness: { maxRiskDataAgeSec: 1, maxMarketDataAgeSec: 1 },
+      auditor: { mode: "disabled", maxInjectionSuspicion: "0", minConsistency: "0", minVerdictConfidence: "0", onUnavailable: "pending" },
+      pendingTtlSec: 1, authorizationTtlSec: 1,
+    };
+    const dataUri = (x: unknown) => `data:application/json;base64,${Buffer.from(JSON.stringify(x)).toString("base64")}`;
+    const send = async (fn: string, args: unknown[]) =>
+      pub.waitForTransactionReceipt({ hash: await w.writeContract({ address: registry, abi: policyRegistryAbi, functionName: fn, args } as never) });
+
+    await send("createPolicy", [accountRef, agentRegistry, 7n, agentAuth.address, BigInt(now + 3600), hashCanonical(policy), dataUri(policy)]);
+    const ok = await loadVerifiedPolicy(client, policyId, { now });
+    expect(ok.ok && ok.policy.binding.agentId).toBe("agent-7");
+    expect(await createPolicyDelegationResolver(client).activeDelegation(policyId)).toEqual({ agentId: "agent-7", agentAuthAddress: agentAuth.address, active: true });
+
+    // Owner points the URI at a tampered document (same hash on chain) → rejected.
+    await send("setPolicy", [policyId, hashCanonical({ ...policy, policyVersion: 2 }), dataUri({ ...policy, policyVersion: 2, mandate: "evil" }), 1n]);
+    expect(await loadVerifiedPolicy(client, policyId, { now })).toEqual({ ok: false, reason: "hash_mismatch" });
+    await send("setPolicy", [policyId, hashCanonical({ ...policy, policyVersion: 3 }), "ipfs://nope", 2n]);
+    expect(await loadVerifiedPolicy(client, policyId, { now })).toEqual({ ok: false, reason: "fetch_failed" });
+    const v4 = { ...policy, policyVersion: 4 };
+    await send("setPolicy", [policyId, hashCanonical(v4), dataUri(v4), 3n]);
+    expect((await loadVerifiedPolicy(client, policyId, { now })).ok).toBe(true);
+    expect(await loadVerifiedPolicy(client, policyId, { now: now + 7200 })).toEqual({ ok: false, reason: "expired" });
+
+    await send("setDelegation", [policyId, agentAuth.address, BigInt(now + 3600), true]);
+    expect(await loadVerifiedPolicy(client, policyId, { now })).toEqual({ ok: false, reason: "revoked" });
+    expect((await createPolicyDelegationResolver(client).activeDelegation(policyId))?.active).toBe(false);
+
+    expect(await loadVerifiedPolicy(client, `0x${"ee".repeat(32)}`, { now })).toEqual({ ok: false, reason: "unknown_policy" });
+    expect(await createPolicyDelegationResolver(client).activeDelegation(`0x${"ee".repeat(32)}`)).toBeUndefined();
+  }, 30_000);
+
+  it("Fuji manifest is well-formed", () => {
+    expect(FUJI_DEPLOYMENT.chainId).toBe(43113);
+    expect(FUJI_DEPLOYMENT.contracts.PolicyRegistry.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(FUJI_DEPLOYMENT.contracts.DecisionLog.deployBlock).toBeGreaterThan(FUJI_DEPLOYMENT.contracts.PolicyRegistry.deployBlock);
   });
 
   it("outbox writes decision + executions to DecisionLog and is idempotent", async () => {
