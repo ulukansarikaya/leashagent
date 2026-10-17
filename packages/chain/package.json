@@ -8,5 +8,9 @@
   "dependencies": {
     "@bekci/shared": "workspace:^",
     "viem": "^2.57.7"
+  },
+  "scripts": {
+    "build:contracts": "forge build && node scripts/gen-abi.mjs",
+    "test:contracts": "forge test"
   }
 }

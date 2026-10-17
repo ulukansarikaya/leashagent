@@ -1,0 +1,14 @@
+[profile.default]
+src = "contracts"
+test = "test-sol"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.24"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+fs_permissions = [{ access = "read", path = "../shared/test-vectors.json" }]
+
+[rpc_endpoints]
+fuji = "${CHAIN_RPC_URL}"
