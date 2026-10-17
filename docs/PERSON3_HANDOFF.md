@@ -1,6 +1,16 @@
 # Person 3 — Web3 / Authorization / Payments: Handoff
 
-Status: built and tested locally (51 TS tests, 35 Solidity tests, real Anvil chain). **Not yet deployed to Fuji.**
+Status: built, tested (87 TS + 35 Solidity tests) and **deployed to Avalanche Fuji**.
+
+| Contract | Fuji address |
+|---|---|
+| PolicyRegistry | [`0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F`](https://testnet.snowtrace.io/address/0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F) |
+| DecisionLog | [`0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96`](https://testnet.snowtrace.io/address/0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96) |
+| DecisionLog LOGGER | `0x62CA5659C4593846570a60A4d92b942863Bf7F8B` |
+| ERC-8004 IdentityRegistry (official) | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
+
+Live smoke test: `npx tsx --env-file=.env scripts/fuji-smoke.ts` — creates/reuses a demo policy, verifies its hash against the chain (tampered doc → `hash_mismatch`), and writes decision + executions through the outbox.
+Deployer/logger keys are testnet-only and live in the local, gitignored `.env` of Person 3.
 
 ## Setup
 
@@ -71,8 +81,7 @@ import { agentIdMatchesBinding } from "@bekci/identity";
 
 ## Still open
 
-- [ ] **Fuji deploy of our contracts**: fund the deployer in `.env` with Fuji AVAX, then `scripts/deploy-fuji.sh`
-      (funds the logger, deploys, writes `POLICY_REGISTRY_ADDRESS` / `DECISION_LOG_ADDRESS` into `.env`).
+- [x] Fuji deploy of our contracts (`scripts/deploy-fuji.sh`).
 - [ ] Publish Bekçi + demo trading agent on the Fuji ERC-8004 registry (needs the funded wallet).
 - [ ] Optional: a real paid x402 settle needs Fuji USDC on the agent wallet (Circle faucet); the demo can keep
       `MockSettlement`.

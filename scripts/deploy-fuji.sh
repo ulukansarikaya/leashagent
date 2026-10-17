@@ -8,12 +8,12 @@ CAST=~/.foundry/bin/cast; FORGE=~/.foundry/bin/forge
 RPC="${CHAIN_RPC_URL}"
 
 bal=$($CAST balance "$DEPLOYER_ADDRESS" --rpc-url "$RPC")
-[ "$bal" -gt 100000000000000000 ] || { echo "Deployer $DEPLOYER_ADDRESS needs >= 0.1 Fuji AVAX (has $($CAST from-wei "$bal"))"; exit 1; }
+[ "$bal" -gt 80000000000000000 ] || { echo "Deployer $DEPLOYER_ADDRESS needs >= 0.08 Fuji AVAX (has $($CAST from-wei "$bal"))"; exit 1; }
 
 lbal=$($CAST balance "$LOGGER_ADDRESS" --rpc-url "$RPC")
-if [ "$lbal" -lt 50000000000000000 ]; then
-  echo "Funding logger $LOGGER_ADDRESS with 0.1 AVAX…"
-  $CAST send "$LOGGER_ADDRESS" --value 0.1ether --private-key "$DEPLOYER_PRIVATE_KEY" --rpc-url "$RPC" >/dev/null
+if [ "$lbal" -lt 20000000000000000 ]; then
+  echo "Funding logger $LOGGER_ADDRESS with 0.05 AVAX…"
+  $CAST send "$LOGGER_ADDRESS" --value 0.05ether --private-key "$DEPLOYER_PRIVATE_KEY" --rpc-url "$RPC" >/dev/null
 fi
 
 cd packages/chain
