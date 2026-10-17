@@ -27,8 +27,8 @@ Nothing in `shared` was renamed or redefined. Person 1 code imports from `@leash
 
 ## Proposals that need agreement (not in shared yet)
 
-1. **Reason code `108`: sell exceeds available inventory.** §6.4 assigns `REJECTED_POLICY` but no code. It lives in `gateway/src/limits.ts` as `SELL_INVENTORY_REASON` until agreed.
-2. **`PaymentEntitlement.refundConsumedCredit`.** The gateway calls it from `CreditReconciler` only when an issued authorization provably never reached the executor (`executor_nonces` absent after expiry plus a grace period). `CreditStore` already implements it, and the wiring test covers it.
+1. ~~Reason code `108`~~ **Accepted by Person 3**: `ReasonCodes.SELL_INVENTORY = 108` in shared; `SELL_INVENTORY_REASON` now points to it.
+2. ~~`PaymentEntitlement.refundConsumedCredit`~~ **Accepted by Person 3** (optional method on the shared interface). The gateway calls it from `CreditReconciler` only when an issued authorization provably never reached the executor (`executor_nonces` absent after expiry plus a grace period). `CreditStore` already implements it, and the wiring test covers it.
 
 ## Decisions made in Person 1 code
 
@@ -47,14 +47,14 @@ Nothing in `shared` was renamed or redefined. Person 1 code imports from `@leash
 |---|---|---|
 | `MockPayment` | `@leashagent/payments` `CreditStore` | **verified** in `tests/integration/person3-wiring.test.ts` |
 | `MockPolicyChain` as L6 `PolicyStateProvider` | `@leashagent/chain` `createChainPolicyStateProvider` | **verified** in the wiring test and the acceptance harness |
-| `MockPolicyChain` as `PolicyChainClient` + docs fetcher | `createPolicyChainClient` + fetch of `policyURI` | todo (Fuji deploy pending). `PolicyLoader` could reuse `verifyPolicyDocument` |
-| gateway `ChainOutbox` (local insert) | `@leashagent/chain` `ChainOutbox` + `createDecisionLogPort` worker | todo. Same `chain_outbox` table and columns; records already pass `chainRecordSchema` |
+| `MockPolicyChain` as `PolicyChainClient` + docs fetcher | `createPolicyChainClient` + `fetchPolicyDocument` | **done (Person 3)**: `scripts/fuji-gateway.ts` / `scripts/fuji-e2e.ts` run the gateway on the real Fuji PolicyRegistry + demo policy |
+| gateway `ChainOutbox` (local insert) | `@leashagent/chain` `ChainOutbox` + `createDecisionLogPort` worker | **done (Person 3)**: real DecisionLog on Fuji in `scripts/lib/fujiGateway.ts`; verified live (Allow + executions + Block confirmed on-chain) |
 | `MockAuditor` | `@leashagent/auditor` (`HeuristicAuditor` / `GenericLlmAuditor` / `JevAuditor`) | `HeuristicAuditor` is used in `gateway:dev` |
 | ingest port | `@leashagent/ingest` `DefaultIngestService` | used in `gateway:dev` (recorder → gateway `reads` table) |
 | `MockRiskProvider`, `MockOrderOwnership` | OKX read key (balances, open orders, **daily PnL with fees**) | todo (§19.7) |
 | `MockMarketData` | `@leashagent/atk` `OkxPublicMarketData` | implemented and unit-tested; not wired in `gateway:dev` |
 | `FakeAtkClient` | `@leashagent/atk` `OkxAtkClient` + `McpStdioTransport` | implemented and tested against a fake MCP server; real OKX awaits the spike |
-| `POST /v1/credits` | `@leashagent/payments` `purchaseCredits` | todo: mount in `http.ts` |
+| `POST /v1/credits` | `@leashagent/payments` `purchaseCredits` | **done (Person 3)**: optional `HttpOptions.credits` route (no payments import in gateway); `delegationResolver(loader, clock)` reuses the verified loader; `tests/integration/credits-http.test.ts` |
 
 ## Running
 

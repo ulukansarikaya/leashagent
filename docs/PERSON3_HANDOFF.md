@@ -1,6 +1,6 @@
 # Person 3 — Web3 / Authorization / Payments: Handoff (Leash Agent)
 
-Status: built, tested (97 TS + 35 Solidity tests) and **deployed to Avalanche Fuji**.
+Status: built, tested (351 TS across all three persons + 35 Solidity tests) and **deployed to Avalanche Fuji**.
 
 Everything public about the deployment is in **`packages/chain/deployments/fuji.json`** (also exported as
 `FUJI_DEPLOYMENT` from `@leashagent/chain`); plain ABI JSON for the dashboard is in `packages/chain/deployments/abi/`.
@@ -23,6 +23,19 @@ Scripts (all need the local `.env`):
 - `scripts/fuji-demo-policy.ts`: create/update the demo policy. To delegate to Person 2's agent, put **their agent's
   public address** in `AGENT_AUTH_ADDRESS` and re-run (setDelegation + setPolicy). Never share private keys.
 - `scripts/fuji-finality.ts`: re-measure latency.
+
+**Gateway on Fuji (Person 1 + Person 3 wired together):**
+- `npx tsx --env-file=.env scripts/fuji-gateway.ts` serves the real gateway with the Fuji PolicyRegistry policy, the L6
+  recheck on Fuji, DecisionLog evidence and `POST /v1/credits` (x402: `X402_MODE=payai` for the real facilitator).
+  OKX stays faked (FakeAtk) until Person 1's OKX demo spike.
+- `npx tsx --env-file=.env scripts/fuji-e2e.ts`: live check. It runs no credits → 402, then the x402 purchase, then an
+  allowed order and a blocked order, and finally reads the Allow/Block verdicts and execution events back from DecisionLog.
+
+**Review notes for Person 1 (minor, both bounded by the 30 s authorization TTL):**
+1. The L6 pre-send check reads only the chain `paused`. A dashboard pause first lands in the gateway's *local* deny
+   state, so an already-issued authorization can still execute until the on-chain pause is mined.
+2. `setDelegation` (agent key rotation) does not bump the policy version, so L6 does not notice a rotation.
+   Revocation is caught (`revoked`). A stricter L6 could also compare `agentAuthAddress`.
 
 **Person 1 — PolicyLoader in one call:** `loadVerifiedPolicy(createPolicyChainClient(pub, FUJI_DEPLOYMENT.contracts.PolicyRegistry.address), policyId)`
 → `{ ok, policy, record }` or `{ ok:false, reason }` (⇒ BLOCK 003). `record.paused` is returned, not treated as failure.

@@ -71,10 +71,21 @@ export function maskEvent(e: AuditEvent): AuditEvent {
   return { ...e, payload: mask(e.payload) };
 }
 
+/** Result of an x402 credit purchase (shape of `@leashagent/payments` purchaseCredits, no import — §15.2). */
+export type CreditPurchaseResult =
+  | { status: 200; credit: unknown }
+  | { status: 402; paymentRequirements: unknown; error?: string }
+  | { status: 403 | 409; error: string };
+
 export type HttpOptions = {
   /** SSE poll interval; events are read back from the committed audit log. */
   ssePollMs?: number;
   sseHeartbeatMs?: number;
+  /**
+   * `POST /v1/credits` (§21.2, x402). Body `{ policyId, agentId }`, payment in the `X-PAYMENT` header.
+   * Payment buys service credits only — it never grants execution authority (INV-17). Route is 404 when unset.
+   */
+  credits?: (q: { policyId: Hex; agentId: string; paymentHeader?: string }) => Promise<CreditPurchaseResult>;
 };
 
 /**
@@ -223,6 +234,29 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
     });
   }
 
+  async function postCredits(req: IncomingMessage, res: ServerResponse) {
+    const body = (await readJson(req)) as { policyId?: unknown; agentId?: unknown };
+    if (
+      !body || typeof body !== "object" || Object.keys(body).some((k) => k !== "policyId" && k !== "agentId") ||
+      typeof body.policyId !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(body.policyId) ||
+      typeof body.agentId !== "string" || body.agentId.length === 0 || body.agentId.length > 256
+    ) {
+      return send(res, 400, { status: "REJECTED_SCHEMA", reasonCode: ReasonCodes.SCHEMA_OR_TOOL, message: "expected { policyId, agentId }" } satisfies ErrorBody);
+    }
+    const header = req.headers["x-payment"];
+    const r = await opts.credits!({
+      policyId: body.policyId.toLowerCase() as Hex,
+      agentId: body.agentId,
+      paymentHeader: typeof header === "string" && header.length <= 8192 ? header : undefined,
+    });
+    if (r.status === 402) {
+      // x402 Payment Required response body.
+      return send(res, 402, { x402Version: 1, error: r.error ?? "payment required", accepts: [r.paymentRequirements] });
+    }
+    if (r.status === 200) return send(res, 200, { ok: true, credit: r.credit });
+    send(res, r.status, { status: "ERROR", message: r.error } satisfies ErrorBody);
+  }
+
   return async function handler(req: IncomingMessage, res: ServerResponse) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
@@ -236,6 +270,7 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       if (m === "GET" && path === "/v1/events") return events(req, res, url);
       if (m === "GET" && path === "/v1/health") return health(res);
       if (m === "POST" && path === "/v1/reads") return await postRead(req, res);
+      if (m === "POST" && path === "/v1/credits" && opts.credits) return await postCredits(req, res);
       send(res, 404, { status: "ERROR", message: "not found" } satisfies ErrorBody);
     } catch (e) {
       if (e instanceof HttpError) return send(res, e.code, e.body);

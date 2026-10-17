@@ -22,7 +22,7 @@ import {
   mockPolicy,
 } from "@leashagent/mocks";
 import { DefaultExecutor, openExecutorDb } from "@leashagent/executor";
-import { createGateway, createGatewayServer, type GatewayDeps, type PaymentEntitlement } from "@leashagent/gateway";
+import { createGateway, createGatewayServer, type GatewayApp, type GatewayDeps, type HttpOptions, type PaymentEntitlement } from "@leashagent/gateway";
 import { createChainPolicyStateProvider } from "@leashagent/chain";
 
 const nonce16 = () => bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
@@ -33,7 +33,13 @@ const nonce16 = () => bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
  */
 export async function appHarness(
   policyOverrides: Partial<Policy> = {},
-  opts: { credits?: number; payment?: PaymentEntitlement; chainEvidence?: GatewayDeps["chainEvidence"] } = {},
+  opts: {
+    credits?: number;
+    payment?: PaymentEntitlement;
+    chainEvidence?: GatewayDeps["chainEvidence"];
+    /** Extra HTTP options built from the app (e.g. the x402 `/v1/credits` handler). */
+    httpOptions?: (app: GatewayApp) => HttpOptions;
+  } = {},
 ) {
   let now = Math.floor(Date.now() / 1000);
   const clock = () => now;
@@ -100,7 +106,7 @@ export async function appHarness(
   const reg = await app.registerPolicy(policy.binding.policyId);
   if (!reg.ok) throw new Error(reg.reason);
 
-  const server = createGatewayServer(app, { ssePollMs: 20, sseHeartbeatMs: 60_000 });
+  const server = createGatewayServer(app, { ssePollMs: 20, sseHeartbeatMs: 60_000, ...opts.httpOptions?.(app) });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 

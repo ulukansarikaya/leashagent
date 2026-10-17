@@ -19,7 +19,9 @@
     "demo:attack": "tsx scripts/injection-demo.ts",
     "spike:atk": "tsx scripts/atk-spike.ts",
     "test:invariants": "vitest run tests/invariants tests/attacks",
-    "gateway:dev": "tsx scripts/dev-gateway.ts"
+    "gateway:dev": "tsx scripts/dev-gateway.ts",
+    "gateway:fuji": "tsx --env-file=.env scripts/fuji-gateway.ts",
+    "e2e:fuji": "tsx --env-file=.env scripts/fuji-e2e.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

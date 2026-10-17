@@ -82,3 +82,22 @@ export class PolicyLoader {
     return { ok: true, p: { ...fresh, paused: fresh.pausedChain || fresh.pausedLocal, source: "chain" } };
   }
 }
+
+/**
+ * x402 purchase guard (§21.2 rule 3): the delegated agent of a policy, read through the SAME verified loader L3/L4 use.
+ * Structurally matches `@leashagent/payments` DelegationResolver (no import — §15.2).
+ */
+export function delegationResolver(loader: PolicyLoader, clock: Clock) {
+  return {
+    async activeDelegation(policyId: Hex) {
+      const r = await loader.load(policyId);
+      if (!r.ok) return undefined;
+      const p = r.p;
+      return {
+        agentId: p.policy.binding.agentId,
+        agentAuthAddress: p.agentAuthAddress as Hex,
+        active: !p.revoked && clock() <= p.delegationValidUntil,
+      };
+    },
+  };
+}
