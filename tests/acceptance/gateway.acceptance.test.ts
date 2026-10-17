@@ -128,8 +128,11 @@ describe("authentication (L3)", () => {
 
 describe("schema / allowlist (L3)", () => {
   it("forbidden tool (withdraw) → REJECTED_SCHEMA 001", async () => {
-    const req = await builder.build(limitBuy(t.order.smallSz), "x", []);
-    expect(await submit({ ...req, intent: { tool: "withdraw" } as never })).toMatchObject({ status: "REJECTED_SCHEMA", reasonCode: 1 });
+    // Validly signed, so it reaches the tool allowlist (§6.3 step 6). Swapping the intent after
+    // signing would fail the signature first (step 4) → REJECTED_AUTH, which the tamper test covers.
+    const { agentSignature: _s, ...rest } = await builder.build(limitBuy(t.order.smallSz), "x", []);
+    const signed = await signAgentIntent(t.agent, { ...rest, intent: { tool: "withdraw" } as never });
+    expect(await submit(signed)).toMatchObject({ status: "REJECTED_SCHEMA", reasonCode: 1 });
   });
 
   it("extra / agent-supplied derived field → REJECTED_SCHEMA", async () => {

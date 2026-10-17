@@ -9,3 +9,4 @@ packages/chain/out/
 packages/chain/cache/
 packages/chain/broadcast/
 .DS_Store
+spike-results/

@@ -16,7 +16,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "mock:gateway": "tsx packages/mock-gateway/src/server.ts",
     "agent": "tsx packages/agent/src/main.ts",
-    "demo:attack": "tsx scripts/injection-demo.ts"
+    "demo:attack": "tsx scripts/injection-demo.ts",
+    "spike:atk": "tsx scripts/atk-spike.ts",
+    "test:invariants": "vitest run tests/invariants tests/attacks",
+    "gateway:dev": "tsx scripts/dev-gateway.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
