@@ -9,5 +9,8 @@
     "@bekci/shared": "workspace:^",
     "viem": "^2.57.7",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@bekci/chain": "workspace:^"
   }
 }
