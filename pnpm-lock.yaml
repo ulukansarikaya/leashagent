@@ -47,6 +47,9 @@ importers:
       '@bekci/shared':
         specifier: workspace:^
         version: link:../shared
+      viem:
+        specifier: ^2.57.7
+        version: 2.57.7(typescript@5.9.3)(zod@4.6.7)
 
   packages/shared:
     dependencies:
