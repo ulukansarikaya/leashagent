@@ -29,13 +29,17 @@ const short = (h) => (h ? `${h.slice(0, 10)}…` : "");
 async function loadPolicy() {
   const health = await fetch("/v1/health").then((r) => r.json());
   paused = health.paused;
-  // The mock exposes the demo policy id via health-less lookup; real gateway: configured id.
-  const id = new URLSearchParams(location.search).get("policyId") ?? window.BEKCI_POLICY_ID ?? ("0x" + "b3".repeat(32));
+  // policyId comes from ?policyId=…; the TEST/DEMO mock also advertises it in /v1/health.
+  const id = new URLSearchParams(location.search).get("policyId") ?? health.policyId;
+  if (!id) throw new Error("policyId missing: open the dashboard with ?policyId=0x…");
   const p = await fetch(`/v1/policy/${id}`).then((r) => r.json());
   policy = p.policy;
   paused = p.paused;
   const rows = [
-    ["policyId", short(policy.policyId)], ["sürüm", policy.policyVersion], ["sahip", policy.owner], ["agent", policy.agentId],
+    ["policyId", short(policy.policyId ?? policy.binding?.policyId)], ["sürüm", policy.policyVersion],
+    ["sahip", policy.binding?.owner ?? policy.owner], ["agent", policy.binding?.agentId ?? policy.agentId],
+    ["ERC-8004", policy.binding ? `${short(policy.binding.agentRegistry)} #${policy.binding.agentRegistryId}` : "—"],
+    ["accountRef", short(policy.binding?.accountRef)],
     ["görev", policy.mandate], ["enstrümanlar", policy.allowedInstruments.join(", ")],
     ["tek emir max", `${policy.maxOrderNotionalUsdt} USDT`], ["onay eşiği", `${policy.escalateAboveUsdt} USDT`],
     ["auditor", policy.auditorEnabled ? "açık" : "kapalı"], ["policyHash", short(p.policyHash)], ["zincir", p.chain],
@@ -67,10 +71,13 @@ function onEvent(ev) {
   if (ev.type === "intent_received") upsert(ev.requestId, { ts: ev.ts, order: p.order, reason: p.agentReason, status: "RECEIVED" });
   if (ev.type === "intent_rejected" && ev.requestId) upsert(ev.requestId, { ts: ev.ts, status: p.status, code: p.reasonCode, note: p.message });
   if (ev.type === "decision") {
-    const st = p.expired ? "EXPIRED" : p.kind === "ALLOW" ? "ALLOWED" : p.kind === "BLOCK" ? "BLOCKED" : "PENDING";
-    upsert(ev.requestId, { status: st, code: p.reasonCode, evidence: p.evidenceHash, auditor: p.auditorOutput });
+    // ALLOW is only a decision; ALLOWED is set when the authorization is issued.
+    const st = p.expired ? "EXPIRED" : p.reasonCode === 4 ? "REJECTED_PAYMENT" : p.kind === "BLOCK" ? "BLOCKED" : p.kind === "PENDING" ? "PENDING" : "POLICY_CHECKED";
+    // An ALLOW decision carries reasonCode 0, which is not a reason (000 = identity rejection).
+    upsert(ev.requestId, { status: st, code: p.kind === "ALLOW" ? undefined : p.reasonCode, evidence: p.evidenceHash, auditor: p.auditorOutput });
   }
   if (ev.type === "approval") upsert(ev.requestId, { status: p.decision === "approve" ? "APPROVED" : "REJECTED_BY_HUMAN" });
+  if (ev.type === "authorization_issued") upsert(ev.requestId, { status: "ALLOWED", basis: p.basis });
   if (ev.type === "execution") upsert(ev.requestId, { status: (p.status ?? "").toUpperCase(), simulated: p.simulated });
   if (ev.type === "pause") { paused = p.paused; renderPaused(); }
 
@@ -82,7 +89,7 @@ function onEvent(ev) {
 
 function feedDetail(ev) {
   const p = ev.payload ?? {};
-  if (ev.type === "decision") return `${p.kind ?? ""} ${p.reasonCode ?? ""} ${REASONS[p.reasonCode] ?? ""}`;
+  if (ev.type === "decision") return p.kind === "ALLOW" ? "ALLOW" : `${p.kind ?? ""} ${p.reasonCode ?? ""} ${REASONS[p.reasonCode] ?? ""}`;
   if (ev.type === "read_recorded") return `flags=[${(p.summary?.flags ?? []).join(",")}] sentiment=${p.summary?.sentiment}`;
   if (ev.type === "intent_rejected") return `${p.status} ${p.message ?? ""}`;
   if (ev.type === "execution") return `${p.status}${p.simulated ? " (simüle)" : ""}`;
@@ -119,12 +126,13 @@ async function connect() {
   if (!window.ethereum) return alert("EIP-1193 cüzdan bulunamadı");
   [account] = await window.ethereum.request({ method: "eth_requestAccounts" });
   $("connectWallet").textContent = `${account.slice(0, 6)}…${account.slice(-4)}`;
-  if (policy && account.toLowerCase() !== policy.owner.toLowerCase()) alert("Bu cüzdan politika sahibi değil; imzalar reddedilecek.");
+  const owner = policy?.binding?.owner ?? policy?.owner;
+  if (owner && account.toLowerCase() !== owner.toLowerCase()) alert("Bu cüzdan politika sahibi değil; imzalar reddedilecek.");
 }
 
 async function decideApproval(requestId, decision) {
   const detail = await fetch(`/v1/intents/${encodeURIComponent(requestId)}`).then((r) => r.json());
-  const msg = { requestId, policyId: policy.policyId, normalizedOrderHash: detail.normalizedOrderHash, decision, nonce: nonce16(), expiresAt: now() + 120 };
+  const msg = { requestId, policyId: policy.binding?.policyId ?? policy.policyId, normalizedOrderHash: detail.normalizedOrderHash, decision, nonce: nonce16(), expiresAt: now() + 120 };
   const ownerSignature = await signTyped("ApprovalDecision", msg);
   const res = await fetch("/v1/approvals", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...msg, ownerSignature }) }).then((r) => r.json());
   upsert(requestId, { status: res.status, code: res.reasonCode ?? orders.get(requestId)?.code });
@@ -133,7 +141,7 @@ async function decideApproval(requestId, decision) {
 }
 
 async function togglePause() {
-  const msg = { policyId: policy.policyId, paused: !paused, nonce: nonce16(), issuedAt: now() };
+  const msg = { policyId: policy.binding?.policyId ?? policy.policyId, paused: !paused, nonce: nonce16(), issuedAt: now() };
   const ownerSignature = await signTyped("PauseCommand", msg);
   const res = await fetch("/v1/pause", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...msg, ownerSignature }) }).then((r) => r.json());
   if (!res.ok) alert(res.message ?? "durdurma reddedildi");

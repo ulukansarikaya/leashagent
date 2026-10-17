@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./reasonCodes.js";
 export * from "./canonical.js";
 export * from "./ids.js";
+export * from "./agentId.js";
 export * from "./dec.js";
 export * from "./decimal.js";
 export * from "./eip712.js";

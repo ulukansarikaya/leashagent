@@ -38,7 +38,7 @@ export const ReasonCodes = {
 
 export type KnownReasonCode = (typeof ReasonCodes)[keyof typeof ReasonCodes];
 
-/** Short names used by agent/dashboard/mock-gateway code — same values as ReasonCodes. */
+/** Short names used by agent/dashboard code — same values as ReasonCodes. */
 export const Reason = {
   IDENTITY: ReasonCodes.IDENTITY,
   SCHEMA: ReasonCodes.SCHEMA_OR_TOOL,
@@ -60,4 +60,19 @@ export const Reason = {
   AUDITOR_ASK_HUMAN: ReasonCodes.HUMAN_AUDITOR_ASK,
   AUDITOR_UNAVAILABLE: ReasonCodes.HUMAN_AUDITOR_UNAVAILABLE,
   ABOVE_THRESHOLD: ReasonCodes.HUMAN_ABOVE_THRESHOLD,
+  AUTH_INVALID: ReasonCodes.AUTH_INVALID,
+  AUTH_EXPIRED: ReasonCodes.AUTH_EXPIRED,
+  HASH_MISMATCH: ReasonCodes.AUTH_HASH_MISMATCH,
+  NONCE_REUSE: ReasonCodes.AUTH_NONCE_REUSE,
+  POLICY_VERSION_CHANGED: ReasonCodes.AUTH_POLICY_VERSION_CHANGED,
+  STORE_ERROR: ReasonCodes.STORE_ERROR,
+  OKX_TIMEOUT: ReasonCodes.OKX_TIMEOUT,
+  CHAIN_DELAYED: ReasonCodes.CHAIN_WRITE_DELAYED,
+} as const;
+
+/** Canonical status a rejection reason maps to at L3/L4 (§11, §25.2). */
+export const REJECTION_STATUS = {
+  [ReasonCodes.IDENTITY]: "REJECTED_AUTH",
+  [ReasonCodes.SCHEMA_OR_TOOL]: "REJECTED_SCHEMA",
+  [ReasonCodes.PAYMENT_REQUIRED]: "REJECTED_PAYMENT",
 } as const;

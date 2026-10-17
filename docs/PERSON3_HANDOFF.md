@@ -31,7 +31,7 @@ Everything public is in `packages/shared` and must be imported from there, never
 
 1. **`evidenceHash` excludes `auditorOutput.raw`** — raw provider JSON may hold floats that `canonicalJson` rejects.
 2. **`clOrdId` concatenation** = `policyId` bytes ‖ UTF-8 `requestId` bytes → `"bk" + 30 hex chars` (32 chars total).
-3. **`agentId` format** = `eip155:<chainId>:<checksummedRegistry>:<id>`; use `agentIdMatchesBinding()` from `@bekci/identity` in L3 step 3.
+3. **`agentId` format** = `eip155:<chainId>:<checksummedRegistry>:<id>`; use `formatAgentId` / `agentIdMatchesBinding` / `bindingIsConsistent` from `@bekci/shared` in L3 step 3.
 4. **EIP-712 field types**: nonces are `bytes16`, times `uint64`, `tool`/`basis`/`decision` are `string`.
 5. **`chain_outbox` gets 3 extra columns** (`state`, `next_attempt_at`, `confirmed_at`). DDL lives in `@bekci/chain` (`migrateChainOutbox`).
 6. **DecisionLog decision transitions**: none → Allow|Block|Pending; Pending → HumanApproved|HumanRejected|Block (EXPIRED is logged as Block).

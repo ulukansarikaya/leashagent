@@ -1,6 +1,7 @@
 import { concat, encodeAbiParameters, getAddress, keccak256, stringToHex } from "viem";
 import { hashCanonical, keccakUtf8 } from "./canonical.js";
-import type { AuditorOutput, Hex, OrderIntent, RuleResult, UUID } from "./types.js";
+import { formatAgentId } from "./agentId.js";
+import type { AuditorOutput, Hex, OrderIntent, PolicyBinding, RuleResult, UUID } from "./types.js";
 
 const UINT_DEC = /^(0|[1-9]\d*)$/;
 
@@ -8,7 +9,15 @@ const UINT_DEC = /^(0|[1-9]\d*)$/;
  * policyId = keccak256(abi.encode(owner, accountRef, agentRegistry, agentRegistryId)) — §5.2, §25.1.
  * Matches PolicyRegistry.computePolicyId on chain.
  */
-export function computePolicyId(owner: Hex, accountRef: Hex, agentRegistry: Hex, agentRegistryId: string): Hex {
+type BindingKey = Pick<PolicyBinding, "owner" | "accountRef" | "agentRegistry" | "agentRegistryId">;
+
+export function computePolicyId(binding: BindingKey): Hex;
+export function computePolicyId(owner: Hex, accountRef: Hex, agentRegistry: Hex, agentRegistryId: string): Hex;
+export function computePolicyId(a: Hex | BindingKey, accountRefArg?: Hex, agentRegistryArg?: Hex, agentRegistryIdArg?: string): Hex {
+  const { owner, accountRef, agentRegistry, agentRegistryId } =
+    typeof a === "string"
+      ? { owner: a, accountRef: accountRefArg!, agentRegistry: agentRegistryArg!, agentRegistryId: agentRegistryIdArg! }
+      : a;
   if (!UINT_DEC.test(agentRegistryId)) throw new Error("agentRegistryId must be a canonical unsigned decimal string");
   return keccak256(
     encodeAbiParameters(
@@ -16,6 +25,18 @@ export function computePolicyId(owner: Hex, accountRef: Hex, agentRegistry: Hex,
       [getAddress(owner), accountRef, getAddress(agentRegistry), BigInt(agentRegistryId)],
     ),
   );
+}
+
+/** True only if binding.policyId and binding.agentId both equal their canonical derivations (§25.1). */
+export function bindingIsConsistent(b: PolicyBinding, chainId = 43113): boolean {
+  try {
+    return (
+      b.policyId.toLowerCase() === computePolicyId(b) &&
+      b.agentId === formatAgentId(chainId, b.agentRegistry, b.agentRegistryId)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** accountRef = keccak256(okxAccountIdentifier). The raw identifier is never stored or written on chain. */
