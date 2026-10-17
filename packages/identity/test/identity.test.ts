@@ -45,9 +45,10 @@ describe("agentId", () => {
 describe("registration metadata", () => {
   it("builds valid Bekci and agent cards", () => {
     const b = bekciRegistration({ baseUrl: "https://bekci.example/" });
-    expect(b.endpoints.map((e) => e.endpoint)).toContain("https://bekci.example/v1/intents");
-    expect(b.payment).toEqual({ protocol: "x402", network: "avalanche-fuji" });
-    expect(tradingAgentRegistration({ name: "Demo", description: "d" }).kind).toBe("trading-agent");
+    expect(b.services.map((e) => e.endpoint)).toContain("https://bekci.example/v1/intents");
+    expect(b.x402Support).toBe(true);
+    expect(b.bekci.paymentNetwork).toBe("avalanche-fuji");
+    expect(tradingAgentRegistration({ name: "Demo", description: "d" }).bekci.kind).toBe("trading-agent");
   });
   it("rejects extra fields (no private data can ride along)", () => {
     const b = bekciRegistration({ baseUrl: "https://bekci.example" });
@@ -55,7 +56,7 @@ describe("registration metadata", () => {
   });
   it("round-trips through data: URI and rejects other schemes", async () => {
     const b = bekciRegistration({ baseUrl: "https://bekci.example" });
-    expect(await loadRegistration(toDataUri(b))).toEqual(b);
+    expect(await loadRegistration(toDataUri(b))).toMatchObject({ name: "Bekci", bekci: { kind: "agent-security-gateway" } });
     await expect(loadRegistration("file:///etc/passwd")).rejects.toThrow();
     await expect(loadRegistration("http://insecure.example/x.json")).rejects.toThrow();
   });

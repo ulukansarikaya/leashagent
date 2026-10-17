@@ -58,10 +58,24 @@ import { agentIdMatchesBinding } from "@bekci/identity";
 - Sign intents: `signAgentIntent(account, req)`. Approvals/pause from the dashboard: `signApproval`, `signPauseCommand` (owner wallet).
 - Discovery demo: `new Erc8004Registry({...}).discover("agent-security-gateway")`; payment demo: `encodePaymentHeader(...)` → `POST /v1/credits`.
 
-## Still open (needs real-world verification, §24)
+## Verified on Avalanche Fuji (2026-10-17)
 
-- [ ] **Fuji deploy**: `DEPLOYER_PRIVATE_KEY=… LOGGER_ADDRESS=… forge script script/Deploy.s.sol --rpc-url fuji --broadcast` (needs Fuji AVAX) → set `POLICY_REGISTRY_ADDRESS`, `DECISION_LOG_ADDRESS`.
-- [ ] **x402 facilitator** that supports Avalanche Fuji; until then use `MockSettlement` (no funds move — demo only).
-- [ ] **ERC-8004 registry address + ABI on Fuji**: `identityRegistryAbi` is the assumed subset; tests run against `MockIdentityRegistry`.
-- [ ] Credits are minted right after settlement in the same process; a crash between settle and mint loses that purchase (acceptable for hackathon, note in demo).
+- **ERC-8004 IdentityRegistry**: `0x8004A818BFB912233c491871b3d84c89A494BD9e` (official erc-8004 deployment, proxy
+  "AgentIdentity"). Our ABI subset matches `abis/IdentityRegistry.json`; `npx tsx scripts/erc8004-resolve.ts 5`
+  resolves a live agent. Registration cards follow the EIP-8004 `registration-v1` shape (`services`, `x402Support`,
+  `active`, `registrations`), Bekçi fields under `bekci`.
+- **x402**: PayAI facilitator `https://facilitator.payai.network` lists `avalanche-fuji` (v1, exact). Asset: Circle
+  Fuji USDC `0x5425890298aed601595a70AB815c96711a31Bc65` (EIP-3009, "USD Coin" v2, 6 decimals).
+  `npx tsx scripts/x402-probe.ts` signs with `createExactPayment` and gets `invalid_exact_evm_insufficient_balance`
+  from `/verify` — i.e. our wire format is accepted; only funds are missing.
+
+## Still open
+
+- [ ] **Fuji deploy of our contracts**: fund the deployer in `.env` with Fuji AVAX, then `scripts/deploy-fuji.sh`
+      (funds the logger, deploys, writes `POLICY_REGISTRY_ADDRESS` / `DECISION_LOG_ADDRESS` into `.env`).
+- [ ] Publish Bekçi + demo trading agent on the Fuji ERC-8004 registry (needs the funded wallet).
+- [ ] Optional: a real paid x402 settle needs Fuji USDC on the agent wallet (Circle faucet); the demo can keep
+      `MockSettlement`.
+- [ ] Credits are minted right after settlement in the same process; a crash between settle and mint loses that
+      purchase (acceptable for hackathon, note in demo).
 - TEE: roadmap only.

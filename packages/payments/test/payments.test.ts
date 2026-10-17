@@ -159,3 +159,27 @@ describe("purchaseCredits (x402)", () => {
     expect(settled).toBe(0);
   });
 });
+
+describe("x402 exact payment (EIP-3009)", () => {
+  it("signs a TransferWithAuthorization the token domain will accept", async () => {
+    const { verifyTypedData } = await import("viem");
+    const { privateKeyToAccount } = await import("viem/accounts");
+    const { createExactPayment, fujiUsdcRequirements, FUJI_USDC } = await import("../src/index.js");
+    const acct = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
+    const r = fujiUsdcRequirements({ payTo: "0x000000000000000000000000000000000000dEaD", maxAmountRequired: "100000", resource: "/v1/credits" });
+    const p = await createExactPayment(acct, r, { now: 1_760_000_000 });
+    const { signature, authorization: a } = p.payload as { signature: Hex; authorization: Record<string, string> };
+    expect(p).toMatchObject({ x402Version: 1, scheme: "exact", network: "avalanche-fuji" });
+    expect(a).toMatchObject({ from: acct.address, value: "100000", validAfter: "1759999940", validBefore: "1760000120" });
+    expect(await verifyTypedData({
+      address: acct.address, signature,
+      domain: { name: "USD Coin", version: "2", chainId: 43113, verifyingContract: FUJI_USDC },
+      types: { TransferWithAuthorization: [
+        { name: "from", type: "address" }, { name: "to", type: "address" }, { name: "value", type: "uint256" },
+        { name: "validAfter", type: "uint256" }, { name: "validBefore", type: "uint256" }, { name: "nonce", type: "bytes32" }] },
+      primaryType: "TransferWithAuthorization",
+      message: { ...a, value: BigInt(a.value!), validAfter: BigInt(a.validAfter!), validBefore: BigInt(a.validBefore!) } as never,
+    })).toBe(true);
+    expect(() => fujiUsdcRequirements({ payTo: "0x000000000000000000000000000000000000dEaD", maxAmountRequired: "0.1", resource: "/" })).toThrow();
+  });
+});
