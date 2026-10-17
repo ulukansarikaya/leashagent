@@ -1,0 +1,10 @@
+{
+  "name": "@leashagent/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": { "@leashagent/shared": "*", "viem": "^2.0.0" },
+  "devDependencies": { "@leashagent/mocks": "*" }
+}

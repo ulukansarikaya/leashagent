@@ -426,6 +426,11 @@ export interface PaymentEntitlement {
   reserveCredit(policyId: Hex, agentId: string, payer: Hex, requestId: UUID): Promise<CreditReserveResult>;
   consumeReservedCredit(policyId: Hex, requestId: UUID): Promise<void>;
   releaseReservedCredit(policyId: Hex, requestId: UUID, reason: string): Promise<void>;
+  /**
+   * Reconciliation only (§4.4 step 11, §21.2 rule 6): refund a consumed credit whose authorization provably never
+   * reached execution. Idempotent. Agreed with Person 1 (CreditReconciler).
+   */
+  refundConsumedCredit?(policyId: Hex, requestId: UUID, reason?: string): Promise<void> | void;
 }
 
 export interface ServiceDiscovery {

@@ -8,4 +8,5 @@ export * from "./decimal.js";
 export * from "./eip712.js";
 export * from "./schemas.js";
 export * from "./execTransitions.js";
+export * from "./normalize.js";
 export { privateKeyToAccount } from "viem/accounts";

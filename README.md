@@ -1,9 +1,11 @@
 # Leash Agent
 
-Mimari: `SONPLAN.md`. Bu repo **Kişi 2** (ingest, agent, auditor, dashboard, injection demo, acceptance suite) ve
-**Kişi 3** (dondurulmuş `shared`, Avalanche kontratları, zincir istemcisi/outbox, x402, ERC-8004) kapsamlarını içerir.
-Kişi 1 (gateway/executor) henüz yok — şimdilik `packages/mock-gateway` test/demo için onun yerini tutuyor.
-Kişi 3 entegrasyon notları: [`docs/PERSON3_HANDOFF.md`](docs/PERSON3_HANDOFF.md). TEE roadmap'te.
+Mimari: `SONPLAN.md`. Bu repo üç kişinin kapsamını içerir: **Kişi 1** (L3–L6 gateway, executor, OKX/ATK adaptörü),
+**Kişi 2** (ingest, agent, auditor, dashboard, injection demo, acceptance suite) ve
+**Kişi 3** (dondurulmuş `shared`, Avalanche kontratları, zincir istemcisi/outbox, x402, ERC-8004).
+`packages/mock-gateway` hâlâ offline demo ve acceptance suite'in kendini doğrulaması için duruyor.
+Entegrasyon notları: [`docs/PERSON1_HANDOFF.md`](docs/PERSON1_HANDOFF.md), [`docs/PERSON3_HANDOFF.md`](docs/PERSON3_HANDOFF.md),
+OKX spike: [`docs/okx-atk-spike.md`](docs/okx-atk-spike.md). TEE roadmap'te.
 
 **Gereksinimler:** Node ≥ 22.13 (24 önerilir; `node:sqlite` kullanılıyor), npm, Foundry (`forge`, `anvil`).
 
@@ -11,6 +13,10 @@ Kişi 3 entegrasyon notları: [`docs/PERSON3_HANDOFF.md`](docs/PERSON3_HANDOFF.m
 
 | Paket | Katman | İçerik |
 |---|---|---|
+| `packages/gateway` | L3–L5, L7 sunucu | `IntentGate` (kimlik/imza/replay/şema/normalizasyon, market-buy kilidi §25.6), `PolicyLoader` (INV-11), saf `RuleEngine`, `DefaultPolicyEngine` (§25.3 sırası), atomik `RiskStore`, `ApprovalHandler`, `PauseGateway`, `CreditReconciler`, hash zincirli audit log, §9 HTTP API + SSE, `createGateway`. |
+| `packages/executor` | L6 | Yetki doğrulama (7 adım), `executor_nonces`, `dispatching` WAL, belirsiz sonuçta asla yeniden göndermeme, salt-okunur reconcile, `isExecTransitionAllowed`. `OKX_TRADE_*` yalnızca burada. |
+| `packages/atk` | L6 adaptörü | `okx-trade-mcp` (MCP stdio, birincil) ve `okx` CLI taşımaları, fail-safe yazma sonucu sınıflandırıcı, `OkxAtkClient`, anahtarsız OKX public market data. |
+| `packages/mocks` | — | **SADECE TEST/DEMO.** Kişi 1 testleri için policy zinciri, risk/market, kredi, auditor, `FakeAtkClient`. |
 | `packages/shared` | — | **Dondurulmuş, tek ortak paket.** §5 tipleri, `canonicalJson`, `policyId`/`agentId`/`clOrdId`/hash yardımcıları, EIP-712 (AgentIntent, AgentRead, ExecutionAuthorization, ApprovalDecision, PauseCommand), strict zod şemaları, `dec`, reason kodları, yürütme geçiş tablosu. Tip yeniden tanımlanmaz; değişiklik üç kişinin onayıyla. |
 | `packages/chain` | C / L7 | `PolicyRegistry` + `DecisionLog` (Solidity, Foundry testleri), Fuji deploy scripti, `PolicyChainClient`, `verifyPolicyDocument` (INV-11), L6 için zincir tabanlı `PolicyStateProvider`, kalıcı `ChainOutbox`. |
 | `packages/payments` | §21.2 | x402: kalıcı kredi defteri (1 ödeme → 5 kredi, `paymentRef` tek sefer), `purchaseCredits` (`POST /v1/credits`), facilitator + mock adaptör. |
@@ -38,6 +44,14 @@ npm test                         # tüm TS testleri: unit + acceptance (mock'a k
 npm run test:contracts           # Solidity testleri (forge)
 npm run demo:attack              # uçtan uca demo: ERC-8004 → x402 → injection → onay → zincir kanıtı
 npm run demo:attack -- --serve   # + dashboard
+```
+
+**Kişi 1 gateway'i (yerel, OKX'e yazmaz)** — gerçek gateway/executor + Kişi 2 auditor/ingest, zincir/OKX/kredi mock:
+
+```bash
+npm run gateway:dev              # çıktıdaki export satırları acceptance suite için
+npm run test:invariants          # INV-1…16 + §26.1 saldırı senaryoları (HTTP)
+npm run spike:atk -- --yes-place-demo-orders   # OKX demo hesabında P0 spike (docs/okx-atk-spike.md)
 ```
 
 **Gerçek E2E demo** — agent ve dashboard Kişi 1'in gateway'ine bağlanır:

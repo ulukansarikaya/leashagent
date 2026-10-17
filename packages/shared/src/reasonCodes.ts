@@ -15,6 +15,7 @@ export const ReasonCodes = {
   RATE: 105,
   DAILY_LOSS: 106,
   PRICE_DEVIATION: 107,
+  SELL_INVENTORY: 108, // sell exceeds fresh available base inventory (§6.4 → REJECTED_POLICY); agreed with Person 1
   STALE_DATA: 110,
 
   AUDITOR_INJECTION: 201,
@@ -53,6 +54,7 @@ export const Reason = {
   RATE: ReasonCodes.RATE,
   DAILY_LOSS: ReasonCodes.DAILY_LOSS,
   PRICE_DEVIATION: ReasonCodes.PRICE_DEVIATION,
+  SELL_INVENTORY: ReasonCodes.SELL_INVENTORY,
   STALE_DATA: ReasonCodes.STALE_DATA,
   AUDITOR_INJECTION: ReasonCodes.AUDITOR_INJECTION,
   AUDITOR_INCONSISTENT: ReasonCodes.AUDITOR_INCONSISTENT,
