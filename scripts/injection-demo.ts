@@ -98,10 +98,10 @@ if (chain) {
   const bekciId = await registryAs(DEPLOYER)!.publishBekci(bekciRegistration({ baseUrl: gatewayUrl }));
   const found = await new Erc8004Registry({ publicClient: chain.publicClient, registry: chain.identityRegistry, chainId: 43113 }).discover("agent-security-gateway");
   const bekci = found[0]!;
-  url = bekci.registration.endpoints.find((e) => e.name === "intents")!.endpoint.replace(/\/v1\/intents$/, "");
+  url = bekci.registration.services.find((e) => e.name === "intents")!.endpoint.replace(/\/v1\/intents$/, "");
   line(`   agent kimliği:  ${agentId}  (sahibi owner, policy bu kimliğe bağlı)`);
   line(`   bulunan Bekçi:  ${bekci.agentId} "${bekci.registration.name}" → ${url}`);
-  line(`   ödeme: ${bekci.registration.payment?.protocol} / ${bekci.registration.payment?.network}  — keşif yetki vermez (INV-20)`);
+  line(`   ödeme: ${bekci.registration.x402Support ? "x402" : "yok"} / ${bekci.registration.bekci?.paymentNetwork}  — keşif yetki vermez (INV-20)`);
   if (bekciId !== bekci.agentId) throw new Error("discovered a different Bekçi than the one published");
 } else {
   line("   \x1b[33matlandı: anvil yok (foundry kurulunca yerel zincirde çalışır)\x1b[0m");
