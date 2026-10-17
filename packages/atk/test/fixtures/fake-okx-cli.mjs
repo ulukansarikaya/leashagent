@@ -10,6 +10,7 @@ if (args[0] === "spot" && args[1] === "place") {
   else if (mode === "reject") fail(["Error: Insufficient balance", "Code: 51008", "TraceId: abc"]);
   else if (mode === "weird") fail(["Error: something odd"]);
   else if (mode === "badjson") process.stdout.write("not json");
+  else if (mode === "array") process.stdout.write(JSON.stringify([{ ordId: "778", clOrdId: get("clOrdId"), sCode: "0", sMsg: "" }])); // okx-trade-cli 1.4.x
   else process.stdout.write(JSON.stringify({ endpoint: "POST /api/v5/trade/order", requestTime: "t", data: [{ ordId: "777", clOrdId: get("clOrdId"), sCode: "0", sMsg: "", argv: args }] }));
 } else if (args[0] === "spot" && args[1] === "get") {
   process.stdout.write(JSON.stringify({ endpoint: "GET", requestTime: "t", data: [{ ordId: "777", clOrdId: get("clOrdId"), instId: get("instId"), state: "filled", accFillSz: "0.001" }] }));

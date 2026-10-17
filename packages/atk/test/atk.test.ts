@@ -151,6 +151,10 @@ describe("CliTransport against a fake okx CLI", () => {
     expect((await mk("ok").getOrderByClOrdId("BTC-USDT", o.clOrdId!))?.state).toBe("filled");
   });
 
+  it("accepts the raw data array printed by okx-trade-cli 1.4.x with --json", async () => {
+    await expect(mk("array").placeSpotOrder(order())).resolves.toMatchObject({ ok: true, ordId: "778" });
+  });
+
   it("text errors: numeric Code -> rejected; network hint / no code / bad JSON -> uncertain", async () => {
     await expect(mk("reject").placeSpotOrder(order())).resolves.toMatchObject({ ok: false, code: "51008" });
     await expect(mk("network").placeSpotOrder(order())).rejects.toBeInstanceOf(AtkUncertainError);

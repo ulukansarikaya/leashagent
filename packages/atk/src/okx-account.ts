@@ -71,7 +71,8 @@ export class OkxRiskProvider {
     const fetchedAt = this.now();
     const [balR, ordR] = await Promise.all([
       this.t.callTool("account_get_balance", {}),
-      this.t.callTool("spot_get_open_orders", { instType: "SPOT" }),
+      // ATK 1.4.x: open orders are spot_get_orders with status "open" (docs mention spot_get_open_orders)
+      this.t.callTool("spot_get_orders", { status: "open" }),
     ]);
 
     const bal = rows(balR, "account_get_balance")[0];
@@ -87,7 +88,7 @@ export class OkxRiskProvider {
 
     const lockedBySellOrders: Record<string, Dec> = {};
     let pending = dec("0");
-    for (const o of rows(ordR, "spot_get_open_orders")) {
+    for (const o of rows(ordR, "spot_get_orders")) {
       const instId = String(o.instId);
       const [base, quote] = instId.split("-");
       if (!base || quote !== this.quote) continue;

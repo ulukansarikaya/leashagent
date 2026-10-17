@@ -21,7 +21,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
 import type { Hex, ReadRecord } from "@leashagent/shared";
 import {
-  ChainOutbox, FUJI_DEPLOYMENT, createChainPolicyStateProvider, createDecisionLogPort, createPolicyChainClient, loadVerifiedPolicy,
+  ChainOutbox, createChainPolicyStateProvider, createDecisionLogPort, createPolicyChainClient, loadVerifiedPolicy,
 } from "@leashagent/chain";
 import {
   CreditStore, FacilitatorSettlement, MockSettlement, PAYAI_FACILITATOR_URL, fujiUsdcRequirements, purchaseCredits,
@@ -31,6 +31,7 @@ import { DefaultExecutor, openExecutorDb, tradeAtkEnvFromProcess } from "@leasha
 import {
   SqliteEquityBaseline, createGateway, createGatewayServer, delegationResolver, openGatewayDb, readAtkEnvFromProcess,
 } from "@leashagent/gateway";
+import { activeDeployment } from "./deployment";
 import { McpStdioTransport, OkxAtkClient, OkxOrderOwnershipVerifier, OkxPublicMarketData, OkxRiskProvider } from "@leashagent/atk";
 import { HeuristicAuditor } from "@leashagent/auditor";
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
@@ -42,7 +43,7 @@ const need = (k: string) => {
 };
 
 export async function buildFujiGateway(opts: { price?: string; dataDir?: string } = {}) {
-  const dep = FUJI_DEPLOYMENT;
+  const dep = activeDeployment();
   if (!dep.demoPolicy) throw new Error("no demo policy in deployments/fuji.json (scripts/fuji-demo-policy.ts)");
   const policyId = dep.demoPolicy.policyId;
   const price = opts.price ?? "60000";

@@ -1,0 +1,47 @@
+{
+  "policyVersion": 3,
+  "binding": {
+    "policyId": "0x98247db09f48844b46a166b1500a5960753f0a0fcca723b001f21e0dc56b3f18",
+    "owner": "0x7d32979a673dBF0781f300A756Df9cC1424cF992",
+    "accountRef": "0xcd50f00c06dc00bbf32bd8927515cba342f7610d047e5726be713e78203e3117",
+    "agentRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    "agentRegistryId": "267",
+    "agentId": "eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:267"
+  },
+  "agentAuthAddress": "0x80E9e6C0a86732b8BE5264fca6AfC508B4862058",
+  "delegationValidUntil": 1794840758,
+  "mandate": "Trade BTC-USDT spot trend-following with small limit orders. Never chase news hype.",
+  "allowedInstruments": [
+    "BTC-USDT"
+  ],
+  "allowedTools": [
+    "spot_place_order",
+    "spot_cancel_order"
+  ],
+  "forbiddenTools": [
+    "transfer",
+    "withdraw"
+  ],
+  "limits": {
+    "maxOrderNotionalUsdt": "10",
+    "maxOpenNotionalUsdt": "100",
+    "maxOrdersPerMinute": 20,
+    "maxDailyLossUsdt": "10",
+    "maxPriceDeviationBps": 50,
+    "marketSlippageBufferBps": 50,
+    "escalateAboveUsdt": "5"
+  },
+  "freshness": {
+    "maxRiskDataAgeSec": 15,
+    "maxMarketDataAgeSec": 10
+  },
+  "auditor": {
+    "mode": "enabled",
+    "maxInjectionSuspicion": "0.5",
+    "minConsistency": "0.5",
+    "minVerdictConfidence": "0.5",
+    "onUnavailable": "pending"
+  },
+  "pendingTtlSec": 600,
+  "authorizationTtlSec": 30
+}

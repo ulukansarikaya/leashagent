@@ -9,7 +9,9 @@ import { avalancheFuji } from "viem/chains";
 import { canonicalJson, computeAccountRef, computePolicyId, formatAgentId, hashCanonical, type Policy } from "@leashagent/shared";
 import { createPolicyChainClient, loadVerifiedPolicy, policyRegistryAbi } from "@leashagent/chain";
 
-const MANIFEST = new URL("../packages/chain/deployments/fuji.json", import.meta.url);
+import { pathToFileURL } from "node:url";
+import { manifestPath } from "./lib/deployment";
+const MANIFEST = pathToFileURL(manifestPath()); // LEASH_DEPLOYMENT or the team manifest
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
 const env = (k: string) => { const v = process.env[k]; if (!v) throw new Error(`missing ${k}`); return v; };
 
@@ -38,8 +40,16 @@ function build(version: number, delegationValidUntil: number): Policy {
     allowedInstruments: ["BTC-USDT"],
     allowedTools: ["spot_place_order", "spot_cancel_order"],
     forbiddenTools: ["transfer", "withdraw"],
-    limits: { maxOrderNotionalUsdt: "100", maxOpenNotionalUsdt: "300", maxOrdersPerMinute: 5, maxDailyLossUsdt: "50",
-      maxPriceDeviationBps: 50, marketSlippageBufferBps: 50, escalateAboveUsdt: "50" },
+    // Overridable for small live runs, e.g. LEASH_POLICY_MAX_ORDER_USDT=10 LEASH_POLICY_ESCALATE_USDT=5
+    limits: {
+      maxOrderNotionalUsdt: process.env.LEASH_POLICY_MAX_ORDER_USDT ?? "100",
+      maxOpenNotionalUsdt: process.env.LEASH_POLICY_MAX_OPEN_USDT ?? "300",
+      maxOrdersPerMinute: Number(process.env.LEASH_POLICY_MAX_ORDERS_PER_MIN ?? 5),
+      maxDailyLossUsdt: process.env.LEASH_POLICY_MAX_DAILY_LOSS_USDT ?? "50",
+      maxPriceDeviationBps: 50,
+      marketSlippageBufferBps: 50,
+      escalateAboveUsdt: process.env.LEASH_POLICY_ESCALATE_USDT ?? "50",
+    },
     freshness: { maxRiskDataAgeSec: 15, maxMarketDataAgeSec: 10 },
     auditor: { mode: "enabled", maxInjectionSuspicion: "0.5", minConsistency: "0.5", minVerdictConfidence: "0.5", onUnavailable: "pending" },
     pendingTtlSec: 600,

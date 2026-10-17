@@ -1,0 +1,56 @@
+{
+  "network": "avalanche-fuji",
+  "chainId": 43113,
+  "rpcUrl": "https://api.avax-test.network/ext/bc/C/rpc",
+  "explorer": "https://testnet.snowtrace.io",
+  "contracts": {
+    "PolicyRegistry": {
+      "address": "0xf5b06d5b6fa638d57f15a818752ce199837d9b2c",
+      "deployTx": "0xdd39abae992a96ec1715b79c5addd1148aa5baaeca8dc4613ce827255787a65d",
+      "deployBlock": 59604736
+    },
+    "DecisionLog": {
+      "address": "0x3a2a9da4ba2e752aad90e0b058ca767ae0acd4f6",
+      "deployTx": "0x98cd501a601d64e65f8813cecb7e033a54a648fe999db718ce5b55bb752c7543",
+      "deployBlock": 59604739
+    }
+  },
+  "roles": {
+    "decisionLogOwner": "0x7d32979a673dBF0781f300A756Df9cC1424cF992",
+    "decisionLogLogger": "0x7d32979a673dBF0781f300A756Df9cC1424cF992"
+  },
+  "erc8004": {
+    "identityRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    "reputationRegistry": "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+  },
+  "x402": {
+    "facilitator": "https://facilitator.payai.network",
+    "network": "avalanche-fuji",
+    "asset": "0x5425890298aed601595a70AB815c96711a31Bc65",
+    "assetName": "USD Coin",
+    "assetVersion": "2",
+    "assetDecimals": 6
+  },
+  "identities": {
+    "leash": {
+      "agentId": "eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:266",
+      "agentRegistryId": "266",
+      "owner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
+      "tx": "0xf9a46ae4159bb8b55a47cdc2e2774cd270414cf3a3e758d18ef8bb979bf9f5df"
+    },
+    "tradingAgent": {
+      "agentId": "eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:267",
+      "agentRegistryId": "267",
+      "owner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
+      "tx": "0x499f6a3e5eaa4607a61457824de522cb167092d9a4cd437cf5adca4c994c06ba"
+    }
+  },
+  "demoPolicy": {
+    "policyId": "0x98247db09f48844b46a166b1500a5960753f0a0fcca723b001f21e0dc56b3f18",
+    "owner": "0x7d32979a673dBF0781f300A756Df9cC1424cF992",
+    "agentAuthAddress": "0x80E9e6C0a86732b8BE5264fca6AfC508B4862058",
+    "policyURI": "data:… (see policies/<policyId>.json)",
+    "policyHash": "0xac7a9b8388e0c6e827504bac011ff84db59a0ae1739e924ebf418015d9448a6f",
+    "version": 3
+  }
+}

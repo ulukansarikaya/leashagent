@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import type { spawn as nodeSpawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { buildAtkEnv, type AtkCallResult, type AtkProcessEnv, type AtkTransport } from "./types";
 
 export type CliTransportOptions = {
@@ -9,6 +10,10 @@ export type CliTransportOptions = {
   /** Kill the CLI after this long; a killed write is "uncertain". */
   timeoutMs?: number;
 };
+
+// cross-spawn (as used by the MCP SDK's stdio transport): resolves `okx` to npm's `okx.cmd` on Windows and
+// escapes arguments correctly. Plain child_process.spawn refuses .cmd files there (EINVAL).
+const spawn = createRequire(import.meta.url)("cross-spawn") as typeof nodeSpawn;
 
 /** Tool name -> CLI argv (flags as read by packages/cli/src/commands/spot.ts). */
 function argv(name: string, a: Record<string, unknown>): string[] {
@@ -57,9 +62,13 @@ export class CliTransport implements AtkTransport {
         clearTimeout(timer);
         if (code === 0) {
           try {
-            const parsed = JSON.parse(out) as { endpoint?: string; requestTime?: string; data?: unknown };
-            if (!("data" in parsed)) return reject(new Error("ATK CLI output without data"));
-            return resolve({ ok: true, response: { endpoint: parsed.endpoint, requestTime: parsed.requestTime, data: parsed.data } });
+            const parsed = JSON.parse(out) as unknown;
+            // okx-trade-cli 1.4.x prints the raw `data` array with --json; older builds printed
+            // `{ endpoint, requestTime, data }`. Anything else is not a recognizable result.
+            if (Array.isArray(parsed)) return resolve({ ok: true, response: { data: parsed } });
+            const o = parsed as { endpoint?: string; requestTime?: string; data?: unknown } | null;
+            if (!o || typeof o !== "object" || !("data" in o)) return reject(new Error("ATK CLI output without data"));
+            return resolve({ ok: true, response: { endpoint: o.endpoint, requestTime: o.requestTime, data: o.data } });
           } catch {
             return reject(new Error("ATK CLI output is not JSON"));
           }

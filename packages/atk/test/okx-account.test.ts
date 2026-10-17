@@ -40,7 +40,7 @@ describe("OkxRiskProvider", () => {
         { ccy: "USDT", cashBal: "4000", eqUsd: "4000" },
         { ccy: "BTC", cashBal: "0.1", eqUsd: "6000" },
       ]),
-      spot_get_open_orders: ok([
+      spot_get_orders: ok([
         { instId: "BTC-USDT", side: "sell", sz: "0.05", accFillSz: "0.01", px: "70000", state: "live" },
         { instId: "BTC-USDT", side: "buy", sz: "0.002", accFillSz: "", px: "50000", state: "live" },
         { instId: "ETH-BTC", side: "buy", sz: "1", accFillSz: "0", px: "0.05", state: "live" }, // not a USDT pair
@@ -65,10 +65,10 @@ describe("OkxRiskProvider", () => {
 
   it("fails closed on read errors and malformed numbers", async () => {
     const err: AtkCallResult = { ok: false, error: { type: "NetworkError", message: "x" } };
-    const p1 = new OkxRiskProvider(fake({ account_get_balance: err, spot_get_open_orders: ok([]) }).t, { baseline: new MemBaseline() });
+    const p1 = new OkxRiskProvider(fake({ account_get_balance: err, spot_get_orders: ok([]) }).t, { baseline: new MemBaseline() });
     await expect(p1.getAccountState(P)).rejects.toThrow();
     const p2 = new OkxRiskProvider(
-      fake({ account_get_balance: balance("1e4", []), spot_get_open_orders: ok([]) }).t,
+      fake({ account_get_balance: balance("1e4", []), spot_get_orders: ok([]) }).t,
       { baseline: new MemBaseline() },
     );
     await expect(p2.getAccountState(P)).rejects.toThrow(/malformed/);
