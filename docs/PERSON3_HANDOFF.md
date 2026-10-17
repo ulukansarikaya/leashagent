@@ -1,6 +1,6 @@
 # Person 3 — Web3 / Authorization / Payments: Handoff (Leash Agent)
 
-Status: built, tested (87 TS + 35 Solidity tests) and **deployed to Avalanche Fuji**.
+Status: built, tested (97 TS + 35 Solidity tests) and **deployed to Avalanche Fuji**.
 
 Everything public about the deployment is in **`packages/chain/deployments/fuji.json`** (also exported as
 `FUJI_DEPLOYMENT` from `@leashagent/chain`); plain ABI JSON for the dashboard is in `packages/chain/deployments/abi/`.
@@ -18,8 +18,8 @@ Everything public about the deployment is in **`packages/chain/deployments/fuji.
 
 Scripts (all need the local `.env`):
 - `scripts/fuji-smoke.ts`: create/verify a policy and write evidence through the outbox.
-- `scripts/fuji-publish-identities.ts`: publish identities (idempotent).
-  Set `LEASH_PUBLIC_URL` and call `Erc8004Registry.updateRegistration("266", leashRegistration({ baseUrl }))` once the gateway has a URL.
+- `scripts/fuji-publish-identities.ts`: sync identities (publish if missing, update stale cards). Once the gateway is
+  hosted: `LEASH_PUBLIC_URL=https://… npx tsx --env-file=.env scripts/fuji-publish-identities.ts` (agentId stays #266).
 - `scripts/fuji-demo-policy.ts`: create/update the demo policy. To delegate to Person 2's agent, put **their agent's
   public address** in `AGENT_AUTH_ADDRESS` and re-run (setDelegation + setPolicy). Never share private keys.
 - `scripts/fuji-finality.ts`: re-measure latency.
