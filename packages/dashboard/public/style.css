@@ -1,0 +1,34 @@
+:root {
+  --bg: #f6f7f9; --card: #fff; --text: #1b1f24; --muted: #6a737d; --border: #dfe3e8;
+  --allow: #1a7f37; --block: #cf222e; --pending: #9a6700; --info: #0969da;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d1117; --card: #161b22; --text: #e6edf3; --muted: #8b949e; --border: #30363d;
+    --allow: #3fb950; --block: #f85149; --pending: #d29922; --info: #58a6ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+header { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--card); flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0 8px 0 0; }
+.spacer { flex: 1; }
+main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; padding: 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; min-width: 0; }
+.wide { grid-column: 1 / -1; overflow-x: auto; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+dt { color: var(--muted); } dd { margin: 0; word-break: break-all; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+code { font-size: 12px; }
+.pill { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 12px; }
+.s-ALLOW, .s-ALLOWED, .s-FILLED, .s-APPROVED { color: var(--allow); font-weight: 600; }
+.s-BLOCK, .s-BLOCKED, .s-REJECTED_AUTH, .s-REJECTED_SCHEMA, .s-REJECTED_POLICY, .s-REJECTED_PAYMENT, .s-REJECTED_BY_HUMAN, .s-EXPIRED { color: var(--block); font-weight: 600; }
+.s-PENDING { color: var(--pending); font-weight: 600; }
+.muted { color: var(--muted); }
+button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
+button.danger { border-color: var(--block); color: var(--block); }
+button.ok { border-color: var(--allow); color: var(--allow); }
+#feed { margin: 0; padding-left: 28px; max-height: 360px; overflow: auto; font-size: 12px; }
+#feed li { padding: 2px 0; }
+.pend { border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+.pend .actions { display: flex; gap: 8px; margin-top: 6px; }

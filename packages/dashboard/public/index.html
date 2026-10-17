@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bekçi Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Bekçi</h1>
+  <span id="conn" class="pill">bağlanıyor…</span>
+  <span id="pausedPill" class="pill"></span>
+  <div class="spacer"></div>
+  <button id="connectWallet">Cüzdan bağla</button>
+  <button id="pauseBtn" class="danger">Acil durdur</button>
+</header>
+<main>
+  <section id="policy" class="card">
+    <h2>Politika</h2>
+    <dl id="policyBody"><dt>yükleniyor</dt></dl>
+  </section>
+  <section class="card">
+    <h2>Onay bekleyenler</h2>
+    <div id="pending"><p class="muted">Yok</p></div>
+  </section>
+  <section class="card wide">
+    <h2>Emirler</h2>
+    <table>
+      <thead><tr><th>Zaman</th><th>Emir</th><th>Durum</th><th>Kod</th><th>Auditor</th><th>Kanıt</th></tr></thead>
+      <tbody id="orders"></tbody>
+    </table>
+  </section>
+  <section class="card wide">
+    <h2>Canlı akış <small class="muted">(hash zinciri: <span id="chainOk">—</span>)</small></h2>
+    <ol id="feed" reversed></ol>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
