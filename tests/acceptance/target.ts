@@ -69,7 +69,13 @@ async function mockTarget(): Promise<Target> {
   const policy = demoPolicy(agent.address, owner.address);
   const gw = createGateway({
     policy, source, auditor: new HeuristicAuditor(), reader: new HeuristicReaderModel(),
-    price: () => price, entitled: () => entitled,
+    price: () => price,
+    // Toggleable PaymentEntitlement (shared interface) so the suite can force "no credit".
+    entitlement: {
+      reserveCredit: async () => (entitled ? { ok: true, creditReservationId: "test" } : { ok: false, paymentRequired: true }),
+      consumeReservedCredit: async () => {},
+      releaseReservedCredit: async () => {},
+    },
   });
   await new Promise<void>((r) => gw.server.listen(0, "127.0.0.1", r));
   return {

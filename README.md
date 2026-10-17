@@ -36,7 +36,7 @@ ERC-8004 kimliği tek başına yetki vermez. `agentId` biçimi dondu: `eip155:<c
 npm install
 npm test                         # tüm TS testleri: unit + acceptance (mock'a karşı) + zincir e2e (anvil varsa)
 npm run test:contracts           # Solidity testleri (forge)
-npm run demo:attack              # offline injection demosu (mock, simüle yürütme)
+npm run demo:attack              # uçtan uca demo: ERC-8004 → x402 → injection → onay → zincir kanıtı
 npm run demo:attack -- --serve   # + dashboard
 ```
 
@@ -84,13 +84,35 @@ Gerçek auditor'ın kararına bağlı yerlerde kesin kod yerine "yürütmeye ula
 Onay yalnızca devam izni verir. `SignedApproval` → taze policy doğrulama → taze piyasa/risk durumu → türetilmiş alanlar
 → deterministik kurallar → gerekiyorsa auditor → yeni risk rezervasyonu → kredi → yetki → executor → OKX → reconciliation.
 Eski snapshot/rezervasyon kullanılmaz; durum değiştiyse sonuç `BLOCKED`/`PENDING` olabilir. Onay yanıtı en fazla `ALLOWED`'dır;
-fill'ler executor'dan `execution` olayı olarak gelir. Mock bunu rezervasyon/kredi adımları olmadan sadeleştirir;
-tam davranış gerçek gateway'e karşı acceptance suite ile doğrulanır.
+fill'ler executor'dan `execution` olayı olarak gelir. Mock risk rezervasyonunu atlar; kredi (`PaymentEntitlement`)
+§25.3 sırasıyla rezerve edilir, BLOCK/PENDING'de bırakılır, yalnızca yetki verilirse tüketilir.
+Tam davranış gerçek gateway'e karşı acceptance suite ile doğrulanır.
 
-## Injection demosu (`scripts/injection-demo.ts`)
+## Dashboard ↔ gateway sözleşmesi (Kişi 1 için)
 
-1. **Korumasız:** agent zehirli haberi ham okur → geçerli `5 BTC limit @65000` emri doğrudan borsaya gider.
-2. **Korumalı:** haber L1'den geçer; agent yalnızca bayraklı `ReadSummary` görür, dürüst reviewer geri çekilir.
-3. **Agent ele geçirilse bile — ana saldırı:** aynı geçerli, imzalı limit emir → **`BLOCKED 103`** (policy/risk).
+Dashboard yalnızca §9 HTTP/SSE uç noktalarını okur. Görev 2'nin beklediği, planda alan düzeyinde tanımlı olmayan iki ayrıntı:
+
+- `GET /v1/health` → `chain: { outbox: { pending, submitted, confirmed, dead } }` (Kişi 3'ün `ChainOutbox.stats()`), zincir kapalıysa `chain: "disabled"`.
+- `chain_write` audit olayları: `payload = { state: "pending" | "confirmed" | "dead" | "retry", kind: "decision" | "execution", eventSeq?, txHash?, error? }`,
+  `requestId` kaydın emrine ait. Kaynak: `ChainOutbox` `onEvent` + enqueue.
+
+`REJECTED_PAYMENT` satırları `decision` olayındaki `reasonCode: 4`'ten türetilir.
+
+## Demo (`scripts/injection-demo.ts`, §23)
+
+Anvil kuruluysa demo yerel bir zincir açar (chainId 43113), üzerine Kişi 3'ün `MockIdentityRegistry` (ERC-8004 yerine)
+ve gerçek `DecisionLog` kontratını deploy eder. Anvil yoksa 1. ve 7. adımlar atlanır, kalan adımlar çalışır.
+x402 `MockSettlement` ile yapılır: para hareket etmez, yalnızca demo içindir.
+
+1. **ERC-8004:** owner, agent kimliğini kaydeder (policy bu kimliğe bağlanır); Bekçi kendi kartını yayınlar; agent
+   `discover("agent-security-gateway")` ile Bekçi'yi ve uç noktasını bulur. Keşif yetki vermez (INV-20).
+2. **x402:** kredisiz emir `REJECTED_PAYMENT 004` → `POST /v1/credits` `402` (ödeme gereksinimleri) → delegasyonsuz
+   ödeyici `403 payer_not_delegated` → agent öder `200` (5 kredi) → aynı ödeme tekrar `409 duplicate_payment`.
+3. **Korumasız:** agent zehirli haberi ham okur → geçerli `5 BTC limit @65000` emri doğrudan borsaya gider.
+4. **Korumalı:** haber L1'den geçer; agent yalnızca bayraklı `ReadSummary` görür, dürüst reviewer geri çekilir.
+5. **Agent ele geçirilse bile — ana saldırı:** aynı geçerli, imzalı limit emir → **`BLOCKED 103`** (policy/risk).
    Ek: enjeksiyon gerekçeli küçük emir `BLOCKED 201`, izinsiz enstrüman `BLOCKED 101`, market buy `REJECTED_SCHEMA`.
-4. **Meşru akış:** küçük emir `ALLOWED`; eşik üstü `PENDING 303` → owner onayı → `ALLOWED`; onay beklerken fiyat kayarsa → `BLOCKED 107`.
+   Engellenen emirler kredi harcamaz.
+6. **Meşru akış:** küçük emir `ALLOWED`; eşik üstü `PENDING 303` → owner onayı → `ALLOWED`; onay beklerken fiyat kayarsa → `BLOCKED 107`.
+7. **Zincir kanıtı:** her karar ve yürütme olayı `ChainOutbox` üzerinden `DecisionLog`'a yazılır; dashboard
+   kuyrukta / gönderildi / zincirde / başarısız sayılarını ve emir başına tx hash'ini gösterir.

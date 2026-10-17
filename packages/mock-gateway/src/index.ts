@@ -8,13 +8,17 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFileSync, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 import { recoverTypedDataAddress } from "viem";
+import { randomBytes } from "node:crypto";
 import {
-  APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, Reason, bindingIsConsistent, decCmp, decMul, hashCanonical,
+  APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, Reason, bindingIsConsistent, computeAuthHash, computeEvidenceHash, decCmp, decMul, hashCanonical,
   recoverAgentIntentSigner, signedIntentRequestSchema,
-  type Auditor, type AuditEvent, type Decision, type DecisionKind, type Hex, type IntentResponse,
-  type NormalizedOrder, type OrderStatus, type PolicyBinding, type ReadRecord, type RuleResult, type RuleViolation,
+  type Auditor, type AuditEvent, type ChainRecord, type ChainVerdict, type Decision, type DecisionKind, type ExecStatus,
+  type ExecutionAuthorization, type Hex, type IntentResponse, type NormalizedOrder, type OrderStatus,
+  type PaymentEntitlement, type PolicyBinding, type ReadRecord, type RuleResult, type RuleViolation,
   type SignedApproval, type SignedIntentRequest, type SignedPauseCommand,
 } from "@bekci/shared";
+import { purchaseCredits, type CreditStore, type SettlementProvider } from "@bekci/payments";
+import type { OutboxEvent, OutboxStats } from "@bekci/chain";
 import { AuditorUnavailable } from "@bekci/auditor";
 import { DefaultIngestService, IngestError, InMemoryReadRecorder, type ContentSource, type ReaderModel } from "@bekci/ingest";
 
@@ -45,8 +49,12 @@ export type GatewayDeps = {
   reader: ReaderModel;
   /** Fresh reference price per call (stand-in for MarketDataProvider). */
   price: (instId: string) => string;
-  /** Stand-in for Person 3's PaymentEntitlement; default: always entitled. */
-  entitled?: (policyId: Hex, requestId: string) => boolean;
+  /** Person 3's PaymentEntitlement (e.g. CreditStore). Omitted: no credit gate. */
+  entitlement?: PaymentEntitlement;
+  /** x402 purchase for POST /v1/credits (Person 3's purchaseCredits + a SettlementProvider). */
+  credits?: { store: CreditStore; provider: SettlementProvider };
+  /** Person 3's ChainOutbox (or anything with the same shape); feed its events to `chainEvent`. */
+  chain?: { enqueue(r: ChainRecord): Promise<void>; stats(): OutboxStats };
   dashboardDir?: string;
   /** Local-demo only: accept owner actions with signature "0x". */
   insecureOwner?: boolean;
@@ -60,6 +68,8 @@ type Entry = {
   decision?: Decision;
   pendingUntil?: number;
   authorized?: boolean;
+  creditReserved?: boolean;
+  execSeq?: number;
 };
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -85,6 +95,28 @@ export function createGateway(d: GatewayDeps) {
     events.push(ev);
     const line = `id: ${ev.seq}\ndata: ${JSON.stringify(ev)}\n\n`;
     for (const s of subscribers) s.write(line);
+  }
+
+  const entitlement = d.entitlement ?? d.credits?.store;
+  const policyHash = hashCanonical(p);
+
+  /** Durable chain evidence: local enqueue only; the decision path never waits on the chain (INV-15). */
+  function toChain(r: ChainRecord) {
+    if (!d.chain) return;
+    void d.chain.enqueue(r).then(
+      () => audit("chain_write", { state: "pending", kind: r.kind, eventSeq: r.kind === "execution" ? r.eventSeq : undefined }, r.requestId),
+      (err) => audit("chain_write", { state: "dead", kind: r.kind, error: String(err) }, r.requestId),
+    );
+  }
+  function logDecision(e: Entry, verdict: ChainVerdict, reasonCode: number, auth?: Omit<ExecutionAuthorization, "signature">) {
+    toChain({
+      kind: "decision", requestId: e.req.requestId, policyId, verdict, policyHash, policyVersion: p.policyVersion,
+      normalizedOrderHash: e.normalizedOrderHash, evidenceHash: e.decision?.evidenceHash ?? hashCanonical(null), reasonCode, authHash: computeAuthHash(auth),
+    });
+  }
+  function logExecution(e: Entry, status: ExecStatus) {
+    e.execSeq = (e.execSeq ?? 0) + 1;
+    toChain({ kind: "execution", requestId: e.req.requestId, eventSeq: e.execSeq, status, okxResultHash: hashCanonical({ simulated: true, status }) });
   }
 
   const ingest = new DefaultIngestService({
@@ -124,7 +156,7 @@ export function createGateway(d: GatewayDeps) {
     const o = e.order;
     const decision = (kind: DecisionKind, code: number, rr: RuleResult, auditorOutput?: Decision["auditorOutput"]): Decision => ({
       requestId: e.req.requestId, policyId, policyVersion: p.policyVersion, kind, reasonCode: code, ruleResult: rr, auditorOutput, decidedAt: now(),
-      evidenceHash: hashCanonical({ ruleResult: rr, auditorOutput: auditorOutput ? { ...auditorOutput, raw: undefined } : null, readIds: e.req.referencedReadIds }),
+      evidenceHash: computeEvidenceHash(rr, auditorOutput, e.req.referencedReadIds),
     });
 
     // 2. policy / delegation verification (fresh)
@@ -141,8 +173,12 @@ export function createGateway(d: GatewayDeps) {
     if (!policyOk) { v.push({ rule: "policy", detail: "policy/delegation not verifiable", code: Reason.POLICY_UNVERIFIED }); return decision("BLOCK", Reason.POLICY_UNVERIFIED, rr(false)); }
     // 4. pause gate
     if (paused) { v.push({ rule: "pause", detail: "policy paused", code: Reason.PAUSED }); return decision("BLOCK", Reason.PAUSED, rr(false)); }
-    // 5. entitlement check (Person 3 owns the real one); payment failure is always 004
-    if (riskIncreasing && d.entitled && !d.entitled(policyId, e.req.requestId)) return decision("BLOCK", Reason.NO_CREDIT, rr(false));
+    // 5. reserve service credit if risk-increasing (§25.3); payment failure is always 004, never 002
+    if (riskIncreasing && entitlement) {
+      const c = await entitlement.reserveCredit(policyId, p.binding.agentId, p.agentAuthAddress, e.req.requestId);
+      if (!c.ok) return decision("BLOCK", Reason.NO_CREDIT, rr(false));
+      e.creditReserved = true;
+    }
     // 6. deterministic rules
     if (!p.allowedInstruments.includes(o.instId)) v.push({ rule: "instrument", detail: o.instId, code: Reason.INSTRUMENT });
     if (!p.allowedTools.includes(o.tool)) v.push({ rule: "tool", detail: o.tool, code: Reason.TOOL });
@@ -181,29 +217,46 @@ export function createGateway(d: GatewayDeps) {
     return decision("ALLOW", 0, rr(true, escalate), auditorOutput);
   }
 
+  type Basis = "rules_only" | "rules_and_auditor" | "human_approved";
+
   /** 11. authorization → executor. The response is ALLOWED; fills arrive later as execution events. */
-  function authorize(e: Entry, basis: "rules_only" | "rules_and_auditor" | "human_approved") {
+  function authorize(e: Entry, auth: Omit<ExecutionAuthorization, "signature">) {
     if (e.authorized) return; // exactly one authorization per requestId
     e.authorized = true;
     e.status = "ALLOWED";
-    audit("authorization_issued", { basis, normalizedOrderHash: e.normalizedOrderHash, simulated: true }, e.req.requestId);
-    setTimeout(() => {
-      e.status = "SUBMITTED";
-      audit("execution", { status: "submitted", eventSeq: 1, clOrdId: e.order.clOrdId, simulated: true }, e.req.requestId);
-      setTimeout(() => {
-        e.status = "FILLED";
-        audit("execution", { status: "filled", eventSeq: 2, clOrdId: e.order.clOrdId, simulated: true }, e.req.requestId);
-      }, 20);
+    audit("authorization_issued", { basis: auth.basis, normalizedOrderHash: e.normalizedOrderHash, simulated: true }, e.req.requestId);
+    const step = (status: ExecStatus, next?: () => void) => setTimeout(() => {
+      e.status = status.toUpperCase() as OrderStatus;
+      audit("execution", { status, eventSeq: (e.execSeq ?? 0) + 1, clOrdId: e.order.clOrdId, simulated: true }, e.req.requestId);
+      logExecution(e, status);
+      next?.();
     }, 20);
+    step("submitted", () => step("filled"));
   }
 
-  function applyDecision(e: Entry, dec: Decision, basis: "rules_only" | "rules_and_auditor" | "human_approved") {
+  async function applyDecision(e: Entry, dec: Decision, basis: Basis) {
     e.decision = dec;
     audit("decision", dec, e.req.requestId);
-    if (dec.reasonCode === Reason.NO_CREDIT) e.status = "REJECTED_PAYMENT";
-    else if (dec.kind === "BLOCK") e.status = "BLOCKED";
-    else if (dec.kind === "PENDING") { e.status = "PENDING"; e.pendingUntil = now() + p.pendingTtlSec; }
-    else authorize(e, basis);
+    const human = basis === "human_approved";
+    // BLOCK / PENDING never consume credit (§25.3).
+    if (dec.kind !== "ALLOW" && e.creditReserved) { await entitlement!.releaseReservedCredit(policyId, e.req.requestId, dec.kind); e.creditReserved = false; }
+    if (dec.reasonCode === Reason.NO_CREDIT) { e.status = "REJECTED_PAYMENT"; logDecision(e, "BLOCK", dec.reasonCode); return; }
+    if (dec.kind === "BLOCK") { e.status = "BLOCKED"; logDecision(e, "BLOCK", dec.reasonCode); return; }
+    if (dec.kind === "PENDING") {
+      e.status = "PENDING"; e.pendingUntil = now() + p.pendingTtlSec;
+      if (!human) logDecision(e, "PENDING", dec.reasonCode); // a re-pend after approval is not a new chain verdict
+      return;
+    }
+    // ALLOW: (mock has no risk reservation) → finalize credit exactly once → one authorization.
+    if (e.creditReserved) { await entitlement!.consumeReservedCredit(policyId, e.req.requestId); e.creditReserved = false; }
+    const t = now();
+    const auth = {
+      requestId: e.req.requestId, policyId, policyVersion: p.policyVersion, accountRef: p.binding.accountRef, agentId: p.binding.agentId,
+      tool: e.order.tool, normalizedOrderHash: e.normalizedOrderHash, nonce: `0x${randomBytes(16).toString("hex")}` as Hex,
+      issuedAt: t, expiresAt: t + 60, guardInstanceId: "mock", basis,
+    };
+    logDecision(e, human ? "HUMAN_APPROVED" : "ALLOW", 0, auth);
+    authorize(e, auth);
   }
 
   async function submitIntent(body: unknown): Promise<IntentResponse> {
@@ -226,7 +279,7 @@ export function createGateway(d: GatewayDeps) {
     intents.set(req.requestId, e);
     audit("intent_received", { order, agentReason: req.agentReason, referencedReadIds: req.referencedReadIds }, req.requestId);
     e.status = "POLICY_CHECKED";
-    applyDecision(e, await evaluate(e, false), p.auditorEnabled ? "rules_and_auditor" : "rules_only");
+    await applyDecision(e, await evaluate(e, false), p.auditorEnabled ? "rules_and_auditor" : "rules_only");
     return respond(e);
   }
 
@@ -248,10 +301,10 @@ export function createGateway(d: GatewayDeps) {
     if (!(await verifyOwner(APPROVAL_TYPES, "ApprovalDecision", { ...msg, expiresAt: BigInt(a.expiresAt) }, ownerSignature))) return refuse("bad owner signature");
     usedOwnerNonces.add(a.nonce);
     audit("approval", { decision: a.decision }, a.requestId);
-    if (e.pendingUntil! < now()) { e.status = "EXPIRED"; return respond(e); }
-    if (a.decision === "reject") { e.status = "REJECTED_BY_HUMAN"; return respond(e); }
+    if (e.pendingUntil! < now()) { e.status = "EXPIRED"; logDecision(e, "BLOCK", e.decision!.reasonCode); return respond(e); }
+    if (a.decision === "reject") { e.status = "REJECTED_BY_HUMAN"; logDecision(e, "HUMAN_REJECTED", e.decision!.reasonCode); return respond(e); }
     e.status = "APPROVED";
-    applyDecision(e, await evaluate(e, true), "human_approved");
+    await applyDecision(e, await evaluate(e, true), "human_approved");
     return respond(e);
   }
 
@@ -266,7 +319,11 @@ export function createGateway(d: GatewayDeps) {
   }
 
   function expirePending() {
-    for (const e of intents.values()) if (e.status === "PENDING" && e.pendingUntil! < now()) { e.status = "EXPIRED"; audit("decision", { kind: "BLOCK", expired: true }, e.req.requestId); }
+    for (const e of intents.values()) if (e.status === "PENDING" && e.pendingUntil! < now()) {
+      e.status = "EXPIRED";
+      audit("decision", { kind: "BLOCK", expired: true }, e.req.requestId);
+      logDecision(e, "BLOCK", e.decision!.reasonCode);
+    }
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
@@ -283,6 +340,17 @@ export function createGateway(d: GatewayDeps) {
         try { return send(200, await ingest.read(await json())); }
         catch (e) { return send(e instanceof IngestError ? 401 : 500, { status: "ERROR", message: (e as Error).message }); }
       }
+      if (req.method === "POST" && url.pathname === "/v1/credits") {
+        if (!d.credits) return send(404, { status: "ERROR", message: "x402 credits not configured" });
+        const body = await json().catch(() => ({})) as { policyId?: Hex; agentId?: string };
+        const r = await purchaseCredits(
+          { ...d.credits, delegations: { activeDelegation: async (id) => id === policyId
+            ? { agentId: p.binding.agentId, agentAuthAddress: p.agentAuthAddress, active: !p.revoked && now() <= p.delegationValidUntil }
+            : undefined } },
+          { policyId: body.policyId ?? policyId, agentId: body.agentId ?? "", paymentHeader: req.headers["x-payment"] as string | undefined },
+        );
+        return send(r.status, r);
+      }
       if (req.method === "POST" && url.pathname === "/v1/approvals") return send(200, await approve(await json()));
       if (req.method === "POST" && url.pathname === "/v1/pause") return send(200, await pause(await json()));
       if (req.method === "GET" && url.pathname.startsWith("/v1/intents/")) {
@@ -291,9 +359,15 @@ export function createGateway(d: GatewayDeps) {
         return send(200, { ...respond(e), normalizedOrderHash: e.normalizedOrderHash, order: e.order, decision: e.decision && { kind: e.decision.kind, reasonCode: e.decision.reasonCode, evidenceHash: e.decision.evidenceHash, auditorOutput: e.decision.auditorOutput && { ...e.decision.auditorOutput, raw: undefined } }, pendingUntil: e.pendingUntil });
       }
       if (req.method === "GET" && url.pathname === `/v1/policy/${policyId}`) {
-        return send(200, { policy: { ...p, policyId }, policyHash: hashCanonical(p), paused, chain: "mock (not anchored)" });
+        return send(200, { policy: { ...p, policyId }, policyHash, paused, chain: d.chain ? "DecisionLog outbox" : "not anchored" });
       }
-      if (req.method === "GET" && url.pathname === "/v1/health") return send(200, { gateway: "mock", testOnly: true, policyId, auditor: p.auditorEnabled ? "enabled" : "disabled", paused });
+      if (req.method === "GET" && url.pathname === "/v1/health") {
+        return send(200, {
+          gateway: "mock", testOnly: true, policyId, auditor: p.auditorEnabled ? "enabled" : "disabled", paused,
+          credits: d.credits ? "x402" : entitlement ? "configured" : "disabled",
+          chain: d.chain ? { outbox: d.chain.stats() } : "disabled",
+        });
+      }
       if (req.method === "GET" && url.pathname === "/v1/events") {
         res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
         const since = Number(req.headers["last-event-id"] ?? url.searchParams.get("since") ?? 0);
@@ -316,9 +390,18 @@ export function createGateway(d: GatewayDeps) {
     }
   }
 
+  /** Wire ChainOutbox `onEvent` here so chain evidence shows up in the audit stream and dashboard. */
+  function chainEvent(ev: OutboxEvent) {
+    if (ev.type === "retry") return audit("chain_write", { state: "retry", attempts: ev.attempts, error: ev.error });
+    const r = ev.record;
+    audit("chain_write", ev.type === "confirmed"
+      ? { state: "confirmed", kind: r.kind, eventSeq: r.kind === "execution" ? r.eventSeq : undefined, txHash: ev.txHash }
+      : { state: "dead", kind: r.kind, eventSeq: r.kind === "execution" ? r.eventSeq : undefined, error: ev.error }, r.requestId);
+  }
+
   return {
     server: createServer((q, s) => void handle(q, s)),
-    submitIntent, approve, pause, ingest,
+    submitIntent, approve, pause, ingest, chainEvent,
     state: { intents, events, recorder, isPaused: () => paused },
   };
 }

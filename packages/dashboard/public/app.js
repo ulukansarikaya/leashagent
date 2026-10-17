@@ -18,6 +18,8 @@ const REASONS = {
   301: "auditor insana sordu", 302: "auditor erişilemez", 303: "eşik üstü",
 };
 
+const CHAIN_LABEL = { pending: "kuyrukta", submitted: "gönderildi", confirmed: "zincirde ✓", dead: "başarısız ✗", retry: "yeniden deneniyor" };
+
 const $ = (id) => document.getElementById(id);
 const orders = new Map();
 let policy = null, paused = false, account = null, lastHash = null, chainOk = true;
@@ -46,6 +48,27 @@ async function loadPolicy() {
   ];
   $("policyBody").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
   renderPaused();
+}
+
+/**
+ * Outbox counters from GET /v1/health → `chain.outbox` = {pending, submitted, confirmed, dead}
+ * (Person 3's OutboxStats). A gateway without chain evidence reports `chain: "disabled"`.
+ */
+let chainTimer = null;
+async function refreshChainStats() {
+  clearTimeout(chainTimer);
+  try {
+    const h = await fetch("/v1/health").then((r) => r.json());
+    const o = h.chain?.outbox;
+    $("creditMode").textContent = h.credits ? `kredi modu: ${h.credits}` : "";
+    if (!o) { $("chainStats").innerHTML = '<p class="muted">zincir kanıtı kapalı</p>'; $("chainNote").textContent = ""; return; }
+    $("chainStats").innerHTML = ["pending", "submitted", "confirmed", "dead"]
+      .map((k) => `<div><b class="c-${k}">${o[k] ?? 0}</b><small>${CHAIN_LABEL[k]}</small></div>`).join("");
+    const open = (o.pending ?? 0) + (o.submitted ?? 0);
+    $("chainNote").textContent = o.dead ? `${o.dead} kayıt kalıcı olarak başarısız — operatör müdahalesi gerekli. Yürütme etkilenmez (INV-15).`
+      : open ? `${open} kayıt zincire yazılmayı bekliyor (gecikme yürütmeyi etkilemez).` : "tüm kayıtlar zincirde.";
+  } catch { /* health unavailable; keep last view */ }
+  finally { chainTimer = setTimeout(refreshChainStats, 3000); }
 }
 
 function renderPaused() {
@@ -80,6 +103,9 @@ function onEvent(ev) {
   if (ev.type === "authorization_issued") upsert(ev.requestId, { status: "ALLOWED", basis: p.basis });
   if (ev.type === "execution") upsert(ev.requestId, { status: (p.status ?? "").toUpperCase(), simulated: p.simulated });
   if (ev.type === "pause") { paused = p.paused; renderPaused(); }
+  // Chain evidence per order: the decision record's state (pending → confirmed | dead).
+  if (ev.type === "chain_write" && ev.requestId && p.kind === "decision") upsert(ev.requestId, { chain: p.state, chainTx: p.txHash ?? orders.get(ev.requestId)?.chainTx });
+  if (ev.type === "chain_write") refreshChainStats();
 
   const li = document.createElement("li");
   li.innerHTML = `<code>${new Date(ev.ts * 1000).toLocaleTimeString()}</code> <b>${esc(ev.type)}</b> ${esc(ev.requestId ? short(ev.requestId) : "")} <span class="muted">${esc(feedDetail(ev))}</span>`;
@@ -93,6 +119,7 @@ function feedDetail(ev) {
   if (ev.type === "read_recorded") return `flags=[${(p.summary?.flags ?? []).join(",")}] sentiment=${p.summary?.sentiment}`;
   if (ev.type === "intent_rejected") return `${p.status} ${p.message ?? ""}`;
   if (ev.type === "execution") return `${p.status}${p.simulated ? " (simüle)" : ""}`;
+  if (ev.type === "chain_write") return `${p.state}${p.kind ? " " + p.kind : ""}${p.eventSeq ? " #" + p.eventSeq : ""}${p.txHash ? " tx " + short(p.txHash) : ""}${p.error ? " — " + p.error : ""}`;
   return "";
 }
 
@@ -101,10 +128,13 @@ function render() {
   $("orders").innerHTML = list.map((o) => {
     const ord = o.order ? `${o.order.side ?? ""} ${o.order.sz ?? ""} ${o.order.instId ?? ""} ${o.order.ordType ?? ""} ${o.order.px ? "@" + o.order.px : ""}` : esc(o.note ?? "—");
     const a = o.auditor ? `tutarlılık ${o.auditor.consistency} · enjeksiyon ${o.auditor.injectionSuspicion} · ${o.auditor.provider}` : "";
+    const pay = o.status === "REJECTED_PAYMENT" ? '<br><small class="muted">x402 kredisi gerekli</small>' : "";
+    const chain = o.chain ? `<span class="c-${esc(o.chain)}">${esc(CHAIN_LABEL[o.chain] ?? o.chain)}</span>${o.chainTx ? `<br><code>${esc(short(o.chainTx))}</code>` : ""}` : '<span class="muted">—</span>';
     return `<tr><td><code>${new Date(o.ts * 1000).toLocaleTimeString()}</code></td><td>${esc(ord)}<br><small class="muted">${esc((o.reason ?? "").slice(0, 140))}</small></td>
       <td class="s-${esc(o.status)}">${esc(o.status)}${o.simulated ? " <small class=muted>(simüle)</small>" : ""}</td>
-      <td>${o.code ?? ""} <small class="muted">${esc(REASONS[o.code] ?? "")}</small></td><td><small>${esc(a)}</small></td><td><code>${esc(short(o.evidence))}</code></td></tr>`;
+      <td>${o.code ?? ""} <small class="muted">${esc(REASONS[o.code] ?? "")}</small>${pay}</td><td><small>${esc(a)}</small></td><td><code>${esc(short(o.evidence))}</code></td><td>${chain}</td></tr>`;
   }).join("");
+  $("paymentCount").textContent = list.filter((o) => o.status === "REJECTED_PAYMENT").length;
   const pend = list.filter((o) => o.status === "PENDING");
   $("pending").innerHTML = pend.length ? pend.map((o) => `<div class="pend"><b>${esc(o.order?.side)} ${esc(o.order?.sz)} ${esc(o.order?.instId)}</b> @ ${esc(o.order?.px ?? "market")}
     <div class="muted">${o.code} ${esc(REASONS[o.code] ?? "")}</div>
@@ -160,3 +190,4 @@ const es = new EventSource("/v1/events");
 es.onopen = () => { $("conn").textContent = "canlı"; $("conn").className = "pill s-ALLOWED"; };
 es.onerror = () => { $("conn").textContent = "bağlantı koptu"; $("conn").className = "pill s-BLOCKED"; };
 es.onmessage = (m) => onEvent(JSON.parse(m.data));
+refreshChainStats();

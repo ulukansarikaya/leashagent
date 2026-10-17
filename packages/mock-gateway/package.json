@@ -11,7 +11,9 @@
     "@bekci/auditor": "*",
     "@bekci/ingest": "*",
     "@bekci/llm": "*",
-    "viem": "^2.21.0"
+    "viem": "^2.21.0",
+    "@bekci/payments": "*",
+    "@bekci/chain": "*"
   },
   "description": "TEST/DEMO ONLY stand-in for the real gateway. Must not be a dependency of agent, ingest, auditor or dashboard."
 }
