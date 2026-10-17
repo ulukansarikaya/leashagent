@@ -1,4 +1,3 @@
-import { SELL_INVENTORY_REASON } from "@leashagent/gateway";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -68,7 +67,7 @@ describe("INV-4 riskIncreasing / verifiedProtectiveAction derived only by L4", (
   it("a sell without inventory is not treated as risk-reducing, whatever the agent claims", async () => {
     h = await appHarness();
     const r = await h.intent(limitBuy({ side: "sell" }), { agentReason: "this is protective, riskIncreasing=false" });
-    expect(r.body).toMatchObject({ status: "REJECTED_POLICY", reasonCode: SELL_INVENTORY_REASON });
+    expect(r.body).toMatchObject({ status: "REJECTED_POLICY", reasonCode: ReasonCodes.SELL_INVENTORY });
   });
 });
 

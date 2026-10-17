@@ -20,7 +20,6 @@ import {
   type RuleResult,
   type ValidatedIntent,
 } from "@leashagent/shared";
-import { SELL_INVENTORY_REASON } from "./limits";
 import type { AuditLog } from "./audit";
 import type { Authorizer } from "./authorizer";
 import { tx } from "./db";
@@ -150,7 +149,7 @@ export class DefaultPolicyEngine implements PolicyEngine {
   // ---------------------------------------------------------------------------------------------
   private async evaluateAndDecide(v: ValidatedIntent, human: boolean): Promise<DecisionOutcome> {
     const { policyId, requestId, agentId } = v.request;
-    const lp = await this.loadVerified(v);
+    const lp = await this.loadVerified(v, human);
     if ("error" in lp) return this.conclude(v, null, UNVERIFIED_RR, undefined, block(ReasonCodes.POLICY_UNVERIFIED, lp.error), human);
 
     const rr = evaluate(v, await this.gather(v, lp));
@@ -176,22 +175,23 @@ export class DefaultPolicyEngine implements PolicyEngine {
 
     let auditorOutput: AuditorOutput | undefined;
     let basis: ExecutionAuthorization["basis"] = human ? "human_approved" : "rules_only";
-    // Human approval is the answer to the auditor/threshold PENDING gates (301/302/303), so the
-    // approved re-run skips them; every state-dependent deterministic rule is re-run regardless.
-    if (!human) {
-      if (lp.policy.auditor.mode === "enabled") {
-        const a = await this.runAuditor(v, lp.policy, rr);
-        auditorOutput = a.output;
-        if (a.verdict) {
-          await releaseCredit("auditor");
-          return this.conclude(v, lp, rr, auditorOutput, a.verdict, human);
-        }
-        basis = "rules_and_auditor";
+    // A human approval is a request to re-evaluate under current conditions, not "execute anyway" (§4.4):
+    // the semantic auditor runs again and its BLOCK verdicts (201/202/203) and unavailability (302) still
+    // apply. Only the two gates whose answer *is* the owner's approval are satisfied by it:
+    // auditor "ask human" (301) and the escalation threshold (303).
+    if (lp.policy.auditor.mode === "enabled") {
+      const a = await this.runAuditor(v, lp.policy, rr);
+      auditorOutput = a.output;
+      const satisfiedByApproval = human && a.verdict?.code === ReasonCodes.HUMAN_AUDITOR_ASK;
+      if (a.verdict && !satisfiedByApproval) {
+        await releaseCredit("auditor");
+        return this.conclude(v, lp, rr, auditorOutput, a.verdict, human);
       }
-      if (rr.escalate) {
-        await releaseCredit("pending human");
-        return this.conclude(v, lp, rr, auditorOutput, pending(ReasonCodes.HUMAN_ABOVE_THRESHOLD, "above escalation threshold"), human);
-      }
+      if (!human) basis = "rules_and_auditor";
+    }
+    if (rr.escalate && !human) {
+      await releaseCredit("pending human");
+      return this.conclude(v, lp, rr, auditorOutput, pending(ReasonCodes.HUMAN_ABOVE_THRESHOLD, "above escalation threshold"), human);
     }
     return this.finalize(v, basis, auditorOutput, creditReserved, human);
   }
@@ -214,7 +214,7 @@ export class DefaultPolicyEngine implements PolicyEngine {
     };
 
     // 9. Fresh policy + state, re-run every state-dependent rule.
-    const lp = await this.loadVerified(v);
+    const lp = await this.loadVerified(v, human);
     if ("error" in lp) {
       await releaseCredit("policy");
       return this.conclude(v, null, UNVERIFIED_RR, auditorOutput, block(ReasonCodes.POLICY_UNVERIFIED, lp.error), human);
@@ -251,7 +251,7 @@ export class DefaultPolicyEngine implements PolicyEngine {
       );
       if (!res.ok) {
         await releaseCredit("reservation");
-        const verdict = res.reasonCode === SELL_INVENTORY_REASON
+        const verdict = res.reasonCode === ReasonCodes.SELL_INVENTORY
           ? rejectPolicy(res.reasonCode, "insufficient sell inventory")
           : block(res.reasonCode, "risk reservation failed");
         return this.conclude(v, lp, rr, auditorOutput, verdict, human);
@@ -310,8 +310,9 @@ export class DefaultPolicyEngine implements PolicyEngine {
   // ---------------------------------------------------------------------------------------------
 
   /** Policy must verify against the chain, delegation must be live and still match the signer. */
-  private async loadVerified(v: ValidatedIntent): Promise<LoadedPolicy | { error: string }> {
-    const r = await this.d.loader.load(v.request.policyId);
+  /** `fresh`: bypass the verified cache and re-verify on chain (human approvals, §4.4). */
+  private async loadVerified(v: ValidatedIntent, fresh = false): Promise<LoadedPolicy | { error: string }> {
+    const r = await this.d.loader.load(v.request.policyId, { fresh });
     if (!r.ok) return { error: r.reason };
     const lp = r.p;
     if (lp.revoked) return { error: "delegation revoked" };
@@ -479,7 +480,7 @@ function gateVerdict(rr: RuleResult): Verdict | null {
   if (p) return block(p.code, p.detail);
   const pause = has(ReasonCodes.PAUSED);
   if (pause) return block(pause.code, pause.detail);
-  const sell = has(SELL_INVENTORY_REASON);
+  const sell = has(ReasonCodes.SELL_INVENTORY);
   if (sell) return rejectPolicy(sell.code, sell.detail);
   return null;
 }

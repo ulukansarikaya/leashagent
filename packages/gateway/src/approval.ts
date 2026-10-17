@@ -60,7 +60,7 @@ export class ApprovalHandler {
     const current: IntentResponse = { requestId: row.requestId, status: row.status };
     if (row.status !== "PENDING") return fail("request is not pending", current);
 
-    const lp = await this.d.loader.load(a.policyId);
+    const lp = await this.d.loader.load(a.policyId, { fresh: true }); // owner + delegation as of now
     if (!lp.ok) return { ok: false, reasonCode: ReasonCodes.POLICY_UNVERIFIED, message: lp.reason, response: current };
 
     const signer = await recoverApprovalSigner(a).catch(() => null);

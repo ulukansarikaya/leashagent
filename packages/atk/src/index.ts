@@ -4,3 +4,4 @@ export * from "./mcp-transport";
 export * from "./cli-transport";
 export * from "./okx-atk-client";
 export * from "./okx-public-market";
+export * from "./okx-account";

@@ -96,11 +96,48 @@ describe("ApprovalHandler (§4.4, INV-6)", () => {
     expect(r.result).toMatchObject({ ok: false, response: { status: "EXPIRED" } });
   });
 
-  it("auditor-routed PENDING can be approved (basis human_approved)", async () => {
-    const h = await harness({ auditor: { mode: "enabled", maxInjectionSuspicion: "0.5", minConsistency: "0.6", minVerdictConfidence: "0.5", onUnavailable: "pending" } });
+  it("auditor-routed PENDING can be approved once the auditor is reachable again (basis human_approved)", async () => {
+    const h = await harness({ auditor: auditorOn });
     h.auditor.mode = "throw";
     const { v, out } = await h.submit(limitBuy());
     expect(out.decision?.reasonCode).toBe(ReasonCodes.HUMAN_AUDITOR_UNAVAILABLE);
+    h.auditor.mode = "ok";
     expect((await h.approve(v)).result).toMatchObject({ ok: true, response: { status: "ALLOWED" } });
+    expect(h.store.getAuthorization(h.base.policyId, v.request.requestId)?.basis).toBe("human_approved");
+  });
+});
+
+const auditorOn = { mode: "enabled" as const, maxInjectionSuspicion: "0.5", minConsistency: "0.6", minVerdictConfidence: "0.5", onUnavailable: "pending" as const };
+
+describe("ApprovalHandler — full fresh re-run (checklist §11)", () => {
+  it("the semantic auditor runs again: an injection verdict after approval blocks (201)", async () => {
+    const h = await harness({ auditor: auditorOn });
+    h.auditor.set({ allow: "0.3", block: "0.1", askHuman: "0.6" }); // first pass: ask human
+    const { v, out } = await h.submit(limitBuy());
+    expect(out.decision?.reasonCode).toBe(ReasonCodes.HUMAN_AUDITOR_ASK);
+    const calls = h.auditor.calls.length;
+    h.auditor.set({ allow: "0.9", block: "0.05", askHuman: "0.05" }, { injectionSuspicion: "0.9" });
+    expect((await h.approve(v)).result).toMatchObject({ ok: true, response: { status: "BLOCKED", reasonCode: ReasonCodes.AUDITOR_INJECTION } });
+    expect(h.auditor.calls.length).toBe(calls + 1);
+    expect(h.payment.consumed()).toBe(0);
+  });
+
+  it("auditor ask-human is satisfied by the approval; auditor unavailability is not (stays PENDING 302)", async () => {
+    const h = await harness({ auditor: auditorOn });
+    h.auditor.set({ allow: "0.3", block: "0.1", askHuman: "0.6" });
+    const a = await h.submit(limitBuy());
+    expect((await h.approve(a.v)).result).toMatchObject({ ok: true, response: { status: "ALLOWED" } });
+
+    const b = await h.submit(limitBuy());
+    h.auditor.mode = "throw";
+    expect((await h.approve(b.v)).result).toMatchObject({ ok: true, response: { status: "PENDING", reasonCode: ReasonCodes.HUMAN_AUDITOR_UNAVAILABLE } });
+  });
+
+  it("approval re-verifies the policy on chain even inside the cache window", async () => {
+    const h = await harness();
+    const { v } = await h.submit(limitBuy({ sz: "0.006" }));
+    h.chain.setRevoked(h.base.policyId, true);
+    expect((await h.approve(v)).result).toMatchObject({ ok: false, reasonCode: ReasonCodes.POLICY_UNVERIFIED, response: { status: "PENDING" } });
+    expect(h.store.getAuthorization(h.base.policyId, v.request.requestId)).toBeNull();
   });
 });

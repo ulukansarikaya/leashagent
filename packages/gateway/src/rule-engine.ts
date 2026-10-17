@@ -9,7 +9,6 @@ import {
   type RuleViolation,
   type ValidatedIntent,
 } from "@leashagent/shared";
-import { SELL_INVENTORY_REASON } from "./limits";
 import type { Ticker } from "./ports";
 
 /**
@@ -69,7 +68,7 @@ export function evaluate(v: ValidatedIntent, x: RuleInputs): RuleResult {
       x.sellAvailable !== null &&
       fresh(x.sellAvailable.fetchedAt, now, F.maxRiskDataAgeSec) &&
       dec(x.sellAvailable.available).gte(order.sz!);
-    if (!ok) add("sell_inventory", SELL_INVENTORY_REASON, "sell exceeds fresh available base balance");
+    if (!ok) add("sell_inventory", ReasonCodes.SELL_INVENTORY, "sell exceeds fresh available base balance");
   }
 
   if (order.tool === "spot_place_order" && x.ticker) {

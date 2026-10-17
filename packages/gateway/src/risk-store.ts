@@ -11,7 +11,6 @@ import {
   type RiskSnapshot,
   type UUID,
 } from "@leashagent/shared";
-import { SELL_INVENTORY_REASON } from "./limits";
 import { tx, type Db } from "./db";
 import type { AccountState, Clock, RiskProvider } from "./ports";
 import type { GatewayStore } from "./store";
@@ -86,7 +85,7 @@ export class DefaultRiskStore implements RiskStore {
       return { ok: false, reasonCode: ReasonCodes.OPEN_NOTIONAL };
     }
     if (opts.sell && (!isDec(opts.sell.qty) || !dec(opts.sell.qty).gt("0"))) {
-      return { ok: false, reasonCode: SELL_INVENTORY_REASON };
+      return { ok: false, reasonCode: ReasonCodes.SELL_INVENTORY };
     }
 
     // Fresh account state; failure is fail-closed.
@@ -117,7 +116,7 @@ export class DefaultRiskStore implements RiskStore {
         }
       }
       if (opts.sell && dec(this.availableSell(r.policyId, opts.sell.ccy, acct)).lt(opts.sell.qty)) {
-        return { ok: false, reasonCode: SELL_INVENTORY_REASON };
+        return { ok: false, reasonCode: ReasonCodes.SELL_INVENTORY };
       }
 
       const reservationId = randomUUID();

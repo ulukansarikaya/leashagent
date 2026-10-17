@@ -15,7 +15,7 @@
 import { randomBytes } from "node:crypto";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { avalancheFuji } from "viem/chains";
-import { ChainOutbox, createDecisionLogPort, type DecisionLogPort } from "@leashagent/chain";
+import { ChainOutbox, createChainPolicyStateProvider, createDecisionLogPort, loadVerifiedPolicy, type DecisionLogPort } from "@leashagent/chain";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { Hex, ReadRecord } from "@leashagent/shared";
 import {
@@ -71,7 +71,7 @@ const atk = new FakeAtkClient();
 const executor = new DefaultExecutor({
   db: openExecutorDb(process.env.DEV_EXECUTOR_DB ?? ":memory:"),
   atk,
-  policyState: chain,
+  policyState: createChainPolicyStateProvider(chain),
   config: {
     guardSignerAddress: guard.address,
     guardInstanceId: "dev-guard",
@@ -109,7 +109,7 @@ const app = createGateway(
   {
     signer: guard,
     chain,
-    docs: chain,
+    verifyPolicy: (id) => loadVerifiedPolicy(chain, id),
     risk: new MockRiskProvider(clock, { baseBalances: { BTC: "1", USDT: "100000" } }),
     market,
     ownership: new MockOrderOwnership(clock),

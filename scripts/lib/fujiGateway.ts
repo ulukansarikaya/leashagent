@@ -4,9 +4,16 @@
  *   - L6 pre-send recheck: createChainPolicyStateProvider over the same Fuji registry
  *   - Evidence: ChainOutbox worker → DecisionLog on Fuji (LOGGER key)
  *   - x402: CreditStore + POST /v1/credits (MockSettlement by default; X402_MODE=payai uses the PayAI facilitator)
- * Mocked (TEST/DEMO ONLY): OKX account/market data and the exchange (FakeAtkClient — nothing reaches OKX).
+ * OKX (OKX_MODE):
+ *   - unset / "fake" (default): mocked account/market data and FakeAtkClient — nothing reaches OKX.
+ *   - "atk": real OKX through ATK (Person 1): read-only key → OkxRiskProvider + OkxOrderOwnershipVerifier,
+ *     public market data, trade key → executor's okx-trade-mcp child. Needs OKX_READ_*, OKX_TRADE_*,
+ *     OKX_PROFILE (demo|live), OKX_SITE. The on-chain policy's accountRef must be that OKX account.
+ *     Market BUY stays disabled unless MARKET_BUY_ENABLED=1 (only after docs/okx-atk-spike.md S5).
  * Needs the local .env (CHAIN_RPC_URL, LOGGER_PRIVATE_KEY, DEPLOYER_ADDRESS); never prints keys.
  */
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { createPublicClient, createWalletClient, http, type PublicClient } from "viem";
@@ -14,14 +21,17 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
 import type { Hex, ReadRecord } from "@leashagent/shared";
 import {
-  ChainOutbox, FUJI_DEPLOYMENT, createChainPolicyStateProvider, createDecisionLogPort, createPolicyChainClient, fetchPolicyDocument,
+  ChainOutbox, FUJI_DEPLOYMENT, createChainPolicyStateProvider, createDecisionLogPort, createPolicyChainClient, loadVerifiedPolicy,
 } from "@leashagent/chain";
 import {
   CreditStore, FacilitatorSettlement, MockSettlement, PAYAI_FACILITATOR_URL, fujiUsdcRequirements, purchaseCredits,
 } from "@leashagent/payments";
 import { BTC_USDT, FakeAtkClient, MockMarketData, MockOrderOwnership, MockRiskProvider } from "@leashagent/mocks";
-import { DefaultExecutor, openExecutorDb } from "@leashagent/executor";
-import { createGateway, createGatewayServer, delegationResolver } from "@leashagent/gateway";
+import { DefaultExecutor, openExecutorDb, tradeAtkEnvFromProcess } from "@leashagent/executor";
+import {
+  SqliteEquityBaseline, createGateway, createGatewayServer, delegationResolver, openGatewayDb, readAtkEnvFromProcess,
+} from "@leashagent/gateway";
+import { McpStdioTransport, OkxAtkClient, OkxOrderOwnershipVerifier, OkxPublicMarketData, OkxRiskProvider } from "@leashagent/atk";
 import { HeuristicAuditor } from "@leashagent/auditor";
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
 
@@ -47,11 +57,37 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
   const guard = privateKeyToAccount((process.env.GUARD_SIGNING_KEY as Hex | undefined) ?? generatePrivateKey());
   const logger = privateKeyToAccount(need("LOGGER_PRIVATE_KEY") as Hex);
 
-  const market = new MockMarketData(clock, [BTC_USDT]);
-  market.quotes.set("BTC-USDT", { bid: price, ask: price, last: price });
-
   const dataDir = opts.dataDir ?? "data";
   mkdirSync(dataDir, { recursive: true });
+  const gatewayDb = openGatewayDb(`${dataDir}/fuji-gateway.db`);
+
+  // ---- OKX: fake (default) or real through ATK ----
+  const okxMode = process.env.OKX_MODE === "atk" ? "atk" : "fake";
+  let okx;
+  if (okxMode === "atk") {
+    const readEnv = readAtkEnvFromProcess();
+    const readAtk = new McpStdioTransport({ env: readEnv, modules: ["account", "spot"], readOnly: true, callTimeoutMs: 20_000 });
+    const tradeAtk = new McpStdioTransport({ env: tradeAtkEnvFromProcess(), modules: ["spot"], readOnly: false, callTimeoutMs: 25_000 });
+    okx = {
+      market: new OkxPublicMarketData({ site: readEnv.site, demo: readEnv.demo }),
+      risk: new OkxRiskProvider(readAtk, { baseline: new SqliteEquityBaseline(gatewayDb) }),
+      ownership: new OkxOrderOwnershipVerifier(readAtk),
+      atk: new OkxAtkClient(tradeAtk),
+      executorDb: `${dataDir}/fuji-executor.db`,
+      close: () => Promise.allSettled([readAtk.close(), tradeAtk.close()]),
+    };
+  } else {
+    const market = new MockMarketData(clock, [BTC_USDT]);
+    market.quotes.set("BTC-USDT", { bid: price, ask: price, last: price });
+    okx = {
+      market,
+      risk: new MockRiskProvider(clock, { baseBalances: { BTC: "1", USDT: "100000" } }),
+      ownership: new MockOrderOwnership(clock),
+      atk: new FakeAtkClient(),
+      executorDb: ":memory:",
+      close: async () => [],
+    };
+  }
   const reqs = fujiUsdcRequirements({
     payTo: (process.env.X402_PAY_TO ?? need("DEPLOYER_ADDRESS")) as Hex,
     maxAmountRequired: process.env.X402_PRICE_ATOMIC ?? "100000", // 0.10 USDC for 5 checks
@@ -61,8 +97,8 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
   const settlement = process.env.X402_MODE === "payai" ? new FacilitatorSettlement(PAYAI_FACILITATOR_URL, reqs) : new MockSettlement(reqs);
 
   const executor = new DefaultExecutor({
-    db: openExecutorDb(":memory:"),
-    atk: new FakeAtkClient(),
+    db: openExecutorDb(okx.executorDb),
+    atk: okx.atk,
     policyState: createChainPolicyStateProvider(chain),
     config: {
       guardSignerAddress: guard.address,
@@ -75,14 +111,18 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
   });
 
   const app = createGateway(
-    { guardInstanceId: "fuji-guard", policyCacheTtlSec: 30, auditorTimeoutMs: 2000, unknownGraceSec: 30 },
     {
+      guardInstanceId: "fuji-guard", policyCacheTtlSec: 30, auditorTimeoutMs: 2000, unknownGraceSec: 30,
+      marketBuyEnabled: process.env.MARKET_BUY_ENABLED === "1",
+    },
+    {
+      db: gatewayDb,
       signer: guard,
       chain,
-      docs: { fetch: (uri: string) => fetchPolicyDocument(uri) },
-      risk: new MockRiskProvider(clock, { baseBalances: { BTC: "1", USDT: "100000" } }),
-      market,
-      ownership: new MockOrderOwnership(clock),
+      verifyPolicy: (id) => loadVerifiedPolicy(chain, id),
+      risk: okx.risk,
+      market: okx.market,
+      ownership: okx.ownership,
       payment: credits,
       auditor: new HeuristicAuditor(),
       executor,
@@ -119,7 +159,11 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
 
   const server = createGatewayServer(app, {
     credits: (q) => purchaseCredits({ store: credits, provider: settlement, delegations: delegationResolver(app.loader, clock) }, q),
+    dashboardDir: join(dirname(fileURLToPath(import.meta.url)), "../../packages/dashboard/public"),
   });
 
-  return { app, server, credits, executor, chain, publicClient, policyId, record, price, settlementMode: process.env.X402_MODE === "payai" ? "payai" : "mock" };
+  return {
+    app, server, credits, executor, chain, publicClient, policyId, record, price, okxMode, closeOkx: okx.close,
+    settlementMode: process.env.X402_MODE === "payai" ? "payai" : "mock",
+  };
 }

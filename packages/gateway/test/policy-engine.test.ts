@@ -1,4 +1,3 @@
-import { SELL_INVENTORY_REASON } from "../src/limits";
 import { describe, expect, it } from "vitest";
 import { ReasonCodes, computeAuthHash, dec, recoverAuthorizationSigner } from "@leashagent/shared";
 import { limitBuy } from "@leashagent/mocks";
@@ -206,7 +205,7 @@ describe("PolicyEngine — sells", () => {
     const h = await harness();
     const { out } = await h.submit(limitBuy({ side: "sell" }));
     expect(out.status).toBe("REJECTED_POLICY");
-    expect(out.decision?.reasonCode).toBe(SELL_INVENTORY_REASON);
+    expect(out.decision?.reasonCode).toBe(ReasonCodes.SELL_INVENTORY);
   });
 
   it("sell with inventory is risk-reducing: no credit, not limited by open notional", async () => {

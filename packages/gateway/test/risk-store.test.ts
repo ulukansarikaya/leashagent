@@ -1,4 +1,3 @@
-import { SELL_INVENTORY_REASON } from "../src/limits";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -87,7 +86,7 @@ describe("RiskStore.reserve — limits", () => {
     t.risk.state.lockedBySellOrders.BTC = "0.004";
     const sell = (qty: string) => t.rs.reserve(req("0"), { instId: "BTC-USDT", sell: { ccy: "BTC", qty } });
     expect((await sell("0.005")).ok).toBe(true); // 0.01 - 0.004 = 0.006 available
-    expect(await sell("0.0011")).toEqual({ ok: false, reasonCode: SELL_INVENTORY_REASON }); // 0.001 left
+    expect(await sell("0.0011")).toEqual({ ok: false, reasonCode: ReasonCodes.SELL_INVENTORY }); // 0.001 left
     expect((await sell("0.001")).ok).toBe(true);
     expect(dec((await t.rs.sellAvailable(P, "BTC")).available).isZero()).toBe(true);
   });

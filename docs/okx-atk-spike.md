@@ -9,7 +9,7 @@ Source: the official [okx/agent-trade-kit](https://github.com/okx/agent-trade-ki
 `docs/cli-reference.md`, `docs/modules/spot.md`, `packages/core/src/config.ts`, `packages/core/src/client/rest-client.ts`,
 `packages/core/src/tools/spot-trade.ts`, `packages/core/src/utils/errors.ts`, `packages/mcp/src/server.ts`, `packages/cli/src/index.ts`).
 
-| Topic | Finding | Effect on Bekçi |
+| Topic | Finding | Effect on Leash Agent |
 |---|---|---|
 | Packages | `npm i -g @okx_ai/okx-trade-mcp @okx_ai/okx-trade-cli` (Node ≥ 18) | Executor host needs one of them on `PATH` |
 | Credentials | Env vars `OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_PASSPHRASE` **override** `~/.okx/config.toml` | Executor passes `OKX_TRADE_*` to the ATK child **only**, through a minimal env (`buildAtkEnv`) |

@@ -50,6 +50,7 @@ npm run demo:attack -- --serve   # + dashboard
 
 ```bash
 npm run gateway:dev              # çıktıdaki export satırları acceptance suite için
+OKX_MODE=atk npm run gateway:fuji # Fuji + gerçek OKX (ATK) + x402 (env: docs/PERSON1_HANDOFF.md)
 npm run test:invariants          # INV-1…16 + §26.1 saldırı senaryoları (HTTP)
 npm run spike:atk -- --yes-place-demo-orders   # OKX demo hesabında P0 spike (docs/okx-atk-spike.md)
 ```

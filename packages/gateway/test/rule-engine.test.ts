@@ -1,4 +1,3 @@
-import { SELL_INVENTORY_REASON } from "../src/limits";
 import { describe, expect, it } from "vitest";
 import { ReasonCodes, dec, hashCanonical, normalizeOrder, type OrderIntent, type Policy, type RiskSnapshot } from "@leashagent/shared";
 import { BTC_USDT, limitBuy, mockPolicy } from "@leashagent/mocks";
@@ -65,9 +64,9 @@ describe("RuleEngine — derived fields (INV-4)", () => {
     expect(ok.derived.riskIncreasing).toBe(false);
     expect(ok.derived.notionalUsdt.startsWith("59.99")).toBe(true);
 
-    expect(codes(evaluate(sell, inputs(policy, { sellAvailable: { available: "0.0009", fetchedAt: NOW } })))).toEqual([SELL_INVENTORY_REASON]);
-    expect(codes(evaluate(sell, inputs(policy, { sellAvailable: { available: "1", fetchedAt: NOW - 999 } })))).toEqual([SELL_INVENTORY_REASON]);
-    expect(codes(evaluate(sell, inputs(policy, { sellAvailable: null })))).toEqual([SELL_INVENTORY_REASON]);
+    expect(codes(evaluate(sell, inputs(policy, { sellAvailable: { available: "0.0009", fetchedAt: NOW } })))).toEqual([ReasonCodes.SELL_INVENTORY]);
+    expect(codes(evaluate(sell, inputs(policy, { sellAvailable: { available: "1", fetchedAt: NOW - 999 } })))).toEqual([ReasonCodes.SELL_INVENTORY]);
+    expect(codes(evaluate(sell, inputs(policy, { sellAvailable: null })))).toEqual([ReasonCodes.SELL_INVENTORY]);
   });
 
   it("cancel is protective only with a fresh, verified own open order (INV-13)", () => {

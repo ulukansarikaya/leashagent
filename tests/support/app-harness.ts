@@ -23,7 +23,7 @@ import {
 } from "@leashagent/mocks";
 import { DefaultExecutor, openExecutorDb } from "@leashagent/executor";
 import { createGateway, createGatewayServer, type GatewayApp, type GatewayDeps, type HttpOptions, type PaymentEntitlement } from "@leashagent/gateway";
-import { createChainPolicyStateProvider } from "@leashagent/chain";
+import { createChainPolicyStateProvider, loadVerifiedPolicy } from "@leashagent/chain";
 
 const nonce16 = () => bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
 
@@ -76,11 +76,11 @@ export async function appHarness(
   const executorLink = { down: false };
 
   const app = createGateway(
-    { guardInstanceId: "guard-1", policyCacheTtlSec: 30, auditorTimeoutMs: 100, unknownGraceSec: 30 },
+    { guardInstanceId: "guard-1", policyCacheTtlSec: 30, policyRefreshAfterSec: 0, auditorTimeoutMs: 100, unknownGraceSec: 30 },
     {
       signer: guard,
       chain,
-      docs: chain,
+      verifyPolicy: (id) => loadVerifiedPolicy(chain, id, { now }),
       risk: riskProvider,
       market,
       ownership,

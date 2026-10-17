@@ -1,7 +1,13 @@
 import { hashCanonical, type ChainRecord, type Hex, type Policy, type PolicyRecord } from "@leashagent/shared";
 
+/** policyURI the way the demo stores it on chain: readable by @leashagent/chain fetchPolicyDocument. */
+export function dataUri(doc: unknown): string {
+  return `data:application/json;base64,${Buffer.from(JSON.stringify(doc), "utf8").toString("base64")}`;
+}
+
 /**
- * Mock of Person 3's PolicyRegistry client + policyURI storage.
+ * Mock of the on-chain PolicyRegistry (implements the shared PolicyChainClient). Policy documents are
+ * `data:` URIs, so Person 3's real `loadVerifiedPolicy` / `fetchPolicyDocument` run against it unchanged.
  * `publish()` mimics the owner's createPolicy/setPolicy transaction.
  */
 export class MockPolicyChain {
@@ -11,7 +17,7 @@ export class MockPolicyChain {
   docFailing = false;
 
   publish(policy: Policy, opts: { paused?: boolean; revoked?: boolean } = {}): PolicyRecord {
-    const uri = `mock://policy/${policy.binding.policyId}/v${policy.policyVersion}`;
+    const uri = dataUri(policy);
     this.docs.set(uri, structuredClone(policy));
     const rec: PolicyRecord = {
       owner: policy.binding.owner,
@@ -54,7 +60,10 @@ export class MockPolicyChain {
     const rec = this.records.get(policyId)!;
     const doc = structuredClone(this.docs.get(rec.policyURI)) as Policy;
     mutate(doc);
-    this.docs.set(rec.policyURI, doc);
+    const uri = dataUri(doc);
+    this.docs.set(uri, doc);
+    this.records.set(policyId, { ...rec, policyURI: uri }); // on-chain hash unchanged
+
   }
 
   mutate(policyId: Hex, patch: Partial<PolicyRecord>): void {
@@ -67,8 +76,9 @@ export class MockPolicyChain {
   async getPolicy(policyId: Hex): Promise<PolicyRecord> {
     if (this.failing) throw new Error("rpc unavailable");
     const rec = this.records.get(policyId);
-    if (!rec) throw new Error("policy not found");
-    return { ...rec };
+    if (!rec) throw new Error("UnknownPolicy"); // same revert name the real registry reports
+    // docFailing: an unreachable policyURI (fetchPolicyDocument rejects the scheme -> fetch_failed)
+    return this.docFailing ? { ...rec, policyURI: "unavailable://policy" } : { ...rec };
   }
 
   /** Executor-side PolicyStateProvider (authenticated read adapter in production). */

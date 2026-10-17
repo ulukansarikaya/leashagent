@@ -10,7 +10,7 @@ import { DefaultIntentGate } from "./intent-gate";
 import { ChainQueue, chainWriteAuditor, type ChainEvidenceWorker, type ChainWorkerEvent } from "./outbox";
 import { PauseGateway } from "./pause";
 import { DefaultPolicyEngine } from "./policy-engine";
-import { PolicyLoader } from "./policy-loader";
+import { PolicyLoader, type VerifiedPolicyResult } from "./policy-loader";
 import type {
   Auditor,
   Clock,
@@ -20,7 +20,6 @@ import type {
   OrderOwnershipVerifier,
   PaymentEntitlement,
   PolicyChainClient,
-  PolicyDocumentFetcher,
   RiskProvider,
 } from "./ports";
 import { DefaultRiskStore } from "./risk-store";
@@ -36,6 +35,8 @@ export type GatewayConfig = {
   dbPath?: string;
   guardInstanceId: string; // GUARD_INSTANCE_ID
   policyCacheTtlSec: number; // POLICY_CACHE_TTL_SEC
+  /** Serve verified policy from cache without RPC while younger than this (default: policyCacheTtlSec). */
+  policyRefreshAfterSec?: number;
   auditorTimeoutMs: number; // AUDITOR_TIMEOUT_MS
   unknownGraceSec: number; // UNKNOWN_GRACE_SEC
   /** §25.6 — keep false until scripts/atk-spike.ts S5 passes. */
@@ -43,10 +44,16 @@ export type GatewayConfig = {
 };
 
 export type GatewayDeps = {
+  /** Pre-opened gateway store (lets the composition root share it, e.g. for the equity baseline). */
+  db?: Db;
   /** GUARD_SIGNING_KEY account. */
   signer: LocalAccount;
   chain: PolicyChainClient & { watchPause?(policyId: Hex, cb: (paused: boolean) => void): () => void };
-  docs: PolicyDocumentFetcher;
+  /**
+   * Full on-chain policy verification, e.g. `(id) => loadVerifiedPolicy(chainClient, id)` from
+   * @leashagent/chain (PolicyRegistry → policyURI → hash/version/binding/delegation → revoked/expiry).
+   */
+  verifyPolicy: (policyId: Hex) => Promise<VerifiedPolicyResult>;
   risk: RiskProvider; // OKX read key
   market: MarketDataProvider;
   ownership: OrderOwnershipVerifier;
@@ -71,7 +78,7 @@ export type GatewayApp = ReturnType<typeof createGateway>;
 /** Composition root for L3 + L4 + L5 + the gateway side of L7. */
 export function createGateway(config: GatewayConfig, deps: GatewayDeps) {
   const clock = deps.clock ?? (() => Math.floor(Date.now() / 1000));
-  const db: Db = openGatewayDb(config.dbPath ?? ":memory:");
+  const db: Db = deps.db ?? openGatewayDb(config.dbPath ?? ":memory:");
   const store = new GatewayStore(db);
   const audit = new AuditLog(db);
   const outbox = new ChainQueue(db, clock, audit);
@@ -80,7 +87,11 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps) {
     chainWriteAuditor(audit, clock, (requestId) => store.findRequest(requestId)?.policyId),
   );
   const queue = new SerialQueue();
-  const loader = new PolicyLoader({ store, chain: deps.chain, docs: deps.docs, clock, cacheTtlSec: config.policyCacheTtlSec });
+  const loader = new PolicyLoader({
+    store, clock, verify: deps.verifyPolicy,
+    cacheTtlSec: config.policyCacheTtlSec,
+    ...(config.policyRefreshAfterSec !== undefined ? { refreshAfterSec: config.policyRefreshAfterSec } : {}),
+  });
   const risk = new DefaultRiskStore({ db, store, risk: deps.risk, clock });
   const authorizer = new LocalAuthorizer(deps.signer, config.guardInstanceId, clock);
   const gate = new DefaultIntentGate({ store, audit, instruments: deps.market, clock, marketBuyEnabled: config.marketBuyEnabled ?? false });

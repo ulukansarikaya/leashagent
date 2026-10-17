@@ -1,4 +1,6 @@
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { extname, resolve, sep } from "node:path";
 import {
   ReasonCodes,
   type AuditEvent,
@@ -86,6 +88,13 @@ export type HttpOptions = {
    * Payment buys service credits only — it never grants execution authority (INV-17). Route is 404 when unset.
    */
   credits?: (q: { policyId: Hex; agentId: string; paymentHeader?: string }) => Promise<CreditPurchaseResult>;
+  /** Serve the dashboard (packages/dashboard/public) for non-API GETs. */
+  dashboardDir?: string;
+};
+
+const STATIC_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
 };
 
 /**
@@ -271,6 +280,14 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       if (m === "GET" && path === "/v1/health") return health(res);
       if (m === "POST" && path === "/v1/reads") return await postRead(req, res);
       if (m === "POST" && path === "/v1/credits" && opts.credits) return await postCredits(req, res);
+      if (m === "GET" && opts.dashboardDir && !path.startsWith("/v1/")) {
+        const root = resolve(opts.dashboardDir);
+        const file = resolve(root, "." + (path === "/" ? "/index.html" : decodeURIComponent(path)));
+        if ((file === root || file.startsWith(root + sep)) && existsSync(file) && statSync(file).isFile()) {
+          res.writeHead(200, { "content-type": STATIC_TYPES[extname(file)] ?? "application/octet-stream" });
+          return res.end(readFileSync(file));
+        }
+      }
       send(res, 404, { status: "ERROR", message: "not found" } satisfies ErrorBody);
     } catch (e) {
       if (e instanceof HttpError) return send(res, e.code, e.body);

@@ -1,4 +1,5 @@
 import { bytesToHex } from "viem";
+import { loadVerifiedPolicy } from "@leashagent/chain";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { signApproval, type Hex, type OrderIntent, type Policy, type SignedApproval, type ValidatedIntent } from "@leashagent/shared";
 import {
@@ -46,7 +47,11 @@ export async function harness(overrides: Partial<Policy> = {}, opts: { credits?:
   const chain = new MockPolicyChain();
   chain.publish(policy);
 
-  const loader = new PolicyLoader({ store, chain, docs: chain, clock, cacheTtlSec: 30 });
+  // Person 3's real verification over the mock registry; refreshAfterSec 0 = verify on every load.
+  const loader = new PolicyLoader({
+    store, clock, cacheTtlSec: 30, refreshAfterSec: 0,
+    verify: (id) => loadVerifiedPolicy(chain, id, { now: clock() }),
+  });
   const riskProvider = new MockRiskProvider(clock);
   const market = new MockMarketData(clock, [BTC_USDT, ETH_USDT]);
   market.quotes.set("ETH-USDT", { bid: "2999", ask: "3001", last: "3000" });

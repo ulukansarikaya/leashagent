@@ -114,6 +114,13 @@ const MIGRATIONS: string[] = [
   ALTER TABLE chain_outbox ADD COLUMN confirmed_at INTEGER;
   CREATE INDEX IF NOT EXISTS chain_outbox_open ON chain_outbox(state, id);
   `,
+  // 007 — account equity at UTC day start, so daily PnL from the OKX read key survives restarts (§6.5)
+  `
+  CREATE TABLE equity_baseline (
+    policy_id TEXT NOT NULL, utc_day TEXT NOT NULL, equity_usdt TEXT NOT NULL, recorded_at INTEGER NOT NULL,
+    PRIMARY KEY (policy_id, utc_day)
+  );
+  `,
 ];
 
 /**
