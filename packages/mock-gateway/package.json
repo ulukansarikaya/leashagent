@@ -1,5 +1,5 @@
 {
-  "name": "@bekci/mock-gateway",
+  "name": "@leashagent/mock-gateway",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,13 +7,13 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@bekci/shared": "*",
-    "@bekci/auditor": "*",
-    "@bekci/ingest": "*",
-    "@bekci/llm": "*",
+    "@leashagent/shared": "*",
+    "@leashagent/auditor": "*",
+    "@leashagent/ingest": "*",
+    "@leashagent/llm": "*",
     "viem": "^2.21.0",
-    "@bekci/payments": "*",
-    "@bekci/chain": "*"
+    "@leashagent/payments": "*",
+    "@leashagent/chain": "*"
   },
   "description": "TEST/DEMO ONLY stand-in for the real gateway. Must not be a dependency of agent, ingest, auditor or dashboard."
 }

@@ -1,5 +1,5 @@
 import { getAddress } from "viem";
-import type { Hex, ServiceCredit } from "@bekci/shared";
+import type { Hex, ServiceCredit } from "@leashagent/shared";
 import type { CreditStore } from "./creditStore.js";
 import { decodePaymentHeader, type PaymentRequirements, type SettlementProvider } from "./x402.js";
 

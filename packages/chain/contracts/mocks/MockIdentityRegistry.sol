@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 /// @notice Minimal stand-in for the ERC-8004 Identity Registry (ERC-721 + tokenURI) used in local tests.
-///         The real registry ABI/address on Fuji is UNVERIFIED (SONPLAN.md §24.2); only the subset Bekçi
+///         The real registry ABI/address on Fuji is UNVERIFIED (SONPLAN.md §24.2); only the subset Leash Agent
 ///         relies on is modelled: register, ownerOf, tokenURI, setAgentURI, Registered event.
 contract MockIdentityRegistry {
     event Registered(uint256 indexed agentId, string tokenURI, address indexed owner);

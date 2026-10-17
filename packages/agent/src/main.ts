@@ -1,6 +1,6 @@
-import { privateKeyToAccount, type Hex } from "@bekci/shared";
-import { llmFromEnv } from "@bekci/llm";
-import { BekciClient, guardedFetch } from "./bekciClient.js";
+import { privateKeyToAccount, type Hex } from "@leashagent/shared";
+import { llmFromEnv } from "@leashagent/llm";
+import { LeashClient, guardedFetch } from "./leashClient.js";
 import { IntentBuilder } from "./intentBuilder.js";
 import { TradingAgent } from "./loop.js";
 import { OkxPublicMarketObserver } from "./market.js";
@@ -16,15 +16,15 @@ if (leaked.length) {
 const need = (k: string) => process.env[k] ?? (console.error(`missing ${k}`), process.exit(1));
 const account = privateKeyToAccount(need("AGENT_AUTH_KEY") as Hex);
 // Must point at Person 1's real gateway. No default, so a demo URL is never picked up silently.
-const bekciUrl = need("BEKCI_URL");
+const leashUrl = need("LEASH_URL");
 const okxBase = process.env.OKX_PUBLIC_BASE ?? "https://www.okx.com";
-const http = guardedFetch([new URL(bekciUrl).origin, new URL(okxBase).origin]);
+const http = guardedFetch([new URL(leashUrl).origin, new URL(okxBase).origin]);
 globalThis.fetch = http; // every outbound call in this process goes through the allowlist
 
 // The mock gateway is test/demo only: refuse it unless explicitly running a demo.
-const health = (await http(`${bekciUrl}/v1/health`).then((r) => r.json()).catch(() => ({}))) as { gateway?: string };
+const health = (await http(`${leashUrl}/v1/health`).then((r) => r.json()).catch(() => ({}))) as { gateway?: string };
 if (health.gateway === "mock" && process.env.AGENT_ALLOW_MOCK !== "1") {
-  console.error("BEKCI_URL points at the TEST/DEMO mock gateway; set AGENT_ALLOW_MOCK=1 only for offline demos");
+  console.error("LEASH_URL points at the TEST/DEMO mock gateway; set AGENT_ALLOW_MOCK=1 only for offline demos");
   process.exit(1);
 }
 
@@ -38,12 +38,12 @@ const agent = new TradingAgent(
   },
   new OkxPublicMarketObserver(okxBase),
   llm ? new LlmReviewer(llm) : new RuleReviewer(),
-  new IntentBuilder(account, need("BEKCI_POLICY_ID") as Hex, need("AGENT_ID")),
-  new BekciClient(bekciUrl, account, need("BEKCI_POLICY_ID") as Hex, http),
+  new IntentBuilder(account, need("LEASH_POLICY_ID") as Hex, need("AGENT_ID")),
+  new LeashClient(leashUrl, account, need("LEASH_POLICY_ID") as Hex, http),
 );
 
 const intervalSec = Number(process.env.AGENT_INTERVAL_SEC ?? "60");
-console.log(`agent ${account.address} → ${bekciUrl} every ${intervalSec}s (reviewer: ${llm ? "llm" : "rules"})`);
+console.log(`agent ${account.address} → ${leashUrl} every ${intervalSec}s (reviewer: ${llm ? "llm" : "rules"})`);
 for (;;) {
   try {
     const r = await agent.tick();

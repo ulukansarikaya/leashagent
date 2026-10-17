@@ -32,17 +32,17 @@
     "assetDecimals": 6
   },
   "identities": {
-    "bekci": {
+    "leash": {
       "agentId": "eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:266",
       "agentRegistryId": "266",
       "owner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
-      "tx": "0x7948b79b4a1d6a1b001c18dd1820e7f4fac245e65b8d99f8abfd501dd4d14eec"
+      "tx": "0xf9a46ae4159bb8b55a47cdc2e2774cd270414cf3a3e758d18ef8bb979bf9f5df"
     },
     "tradingAgent": {
       "agentId": "eip155:43113:0x8004A818BFB912233c491871b3d84c89A494BD9e:267",
       "agentRegistryId": "267",
       "owner": "0xCD275A6da96e4d4cE6b04025B63315A636fbE91d",
-      "tx": "0xd52c299b585bea274d75818c8480cad6a34892a0b5b0e8b23254f9e40d7960ac"
+      "tx": "0x499f6a3e5eaa4607a61457824de522cb167092d9a4cd437cf5adca4c994c06ba"
     }
   },
   "demoPolicy": {

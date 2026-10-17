@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import type { Hex } from "@bekci/shared";
+import type { Hex } from "@leashagent/shared";
 import {
   CreditStore,
   MockSettlement,
@@ -12,14 +12,14 @@ import {
 
 const PID = `0x${"ab".repeat(32)}` as Hex;
 const PID2 = `0x${"cd".repeat(32)}` as Hex;
-const AGENT = "bekci-demo-agent";
+const AGENT = "leash-demo-agent";
 const PAYER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Hex;
 const OTHER = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" as Hex;
 const rid = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
 
 const reqs: PaymentRequirements = {
   scheme: "exact", network: "avalanche-fuji", maxAmountRequired: "100000", resource: "/v1/credits",
-  description: "5 Bekci risk-increasing intent checks", mimeType: "application/json",
+  description: "5 Leash Agent risk-increasing intent checks", mimeType: "application/json",
   payTo: "0x0000000000000000000000000000000000000B0C", maxTimeoutSeconds: 60,
   asset: "0x5425890298aed601595a70AB815c96711a31Bc65",
 };

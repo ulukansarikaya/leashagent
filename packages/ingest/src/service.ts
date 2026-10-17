@@ -1,4 +1,4 @@
-import { hashText, recoverAgentReadSigner, type Hex, type ReadRecord, type ReadRequest, type ReadSummary } from "@bekci/shared";
+import { hashText, recoverAgentReadSigner, type Hex, type ReadRecord, type ReadRequest, type ReadSummary } from "@leashagent/shared";
 import type { ContentSource } from "./fetcher.js";
 import type { ReadRecorder } from "./recorder.js";
 import type { ReaderModel } from "./reader.js";

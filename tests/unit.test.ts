@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { keccak256 } from "viem";
-import { canonicalJson, computePolicyId, decMul, privateKeyToAccount, recoverAgentIntentSigner } from "@bekci/shared";
-import { FixtureMarketObserver, IntentBuilder, RuleReviewer, generateSignal, parseReview } from "@bekci/agent";
-import { HeuristicReaderModel, looksLikeInstructions, sanitize } from "@bekci/ingest";
-import { AuditorUnavailable, GenericLlmAuditor, parseAuditorOutput } from "@bekci/auditor";
+import { canonicalJson, computePolicyId, decMul, privateKeyToAccount, recoverAgentIntentSigner } from "@leashagent/shared";
+import { FixtureMarketObserver, IntentBuilder, RuleReviewer, generateSignal, parseReview } from "@leashagent/agent";
+import { HeuristicReaderModel, looksLikeInstructions, sanitize } from "@leashagent/ingest";
+import { AuditorUnavailable, GenericLlmAuditor, parseAuditorOutput } from "@leashagent/auditor";
 
 const acct = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
 
@@ -77,7 +77,7 @@ describe("auditor", () => {
 });
 
 describe("mock gateway isolation", () => {
-  it("no production package depends on or imports @bekci/mock-gateway", async () => {
+  it("no production package depends on or imports @leashagent/mock-gateway", async () => {
     const { readFileSync, readdirSync } = await import("node:fs");
     for (const pkg of ["shared", "llm", "ingest", "agent", "auditor", "dashboard"]) {
       const manifest = readFileSync(`packages/${pkg}/package.json`, "utf8");
@@ -92,7 +92,7 @@ describe("mock gateway isolation", () => {
 
 describe("agent egress allowlist", () => {
   it("blocks other origins and survives replacing globalThis.fetch", async () => {
-    const { guardedFetch } = await import("@bekci/agent");
+    const { guardedFetch } = await import("@leashagent/agent");
     const original = globalThis.fetch;
     const calls: string[] = [];
     globalThis.fetch = (async (u: string) => { calls.push(String(u)); return new Response("{}"); }) as typeof fetch;
@@ -108,7 +108,7 @@ describe("agent egress allowlist", () => {
 
 describe("shared chain-evidence contract", () => {
   it("schemas accept the agreed shapes and reject drift", async () => {
-    const { healthChainSchema, chainWritePayloadSchema } = await import("@bekci/shared");
+    const { healthChainSchema, chainWritePayloadSchema } = await import("@leashagent/shared");
     expect(healthChainSchema.safeParse({ outbox: { pending: 1, submitted: 0, confirmed: 2, dead: 0 } }).success).toBe(true);
     expect(healthChainSchema.safeParse("disabled").success).toBe(true);
     expect(healthChainSchema.safeParse({ outbox: { pending: 1 } }).success).toBe(false);

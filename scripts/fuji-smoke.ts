@@ -5,11 +5,11 @@ import { DatabaseSync } from "node:sqlite";
 import { createPublicClient, createWalletClient, http, type Hex, type PublicClient } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
-import { computeAccountRef, computePolicyId, formatAgentId, hashCanonical, type Policy } from "@bekci/shared";
+import { computeAccountRef, computePolicyId, formatAgentId, hashCanonical, type Policy } from "@leashagent/shared";
 import {
   ChainOutbox, createDecisionLogPort, createPolicyChainClient, policyRegistryAbi, verifyPolicyDocument, delegationActive,
-} from "@bekci/chain";
-import { FUJI_IDENTITY_REGISTRY } from "@bekci/identity";
+} from "@leashagent/chain";
+import { FUJI_IDENTITY_REGISTRY } from "@leashagent/identity";
 
 const env = (k: string) => { const v = process.env[k]; if (!v) throw new Error(`missing ${k}`); return v; };
 const transport = http(env("CHAIN_RPC_URL"));
@@ -20,7 +20,7 @@ const registry = env("POLICY_REGISTRY_ADDRESS") as Hex;
 const decisionLog = env("DECISION_LOG_ADDRESS") as Hex;
 
 // Demo binding: agent identity on the real ERC-8004 registry (id is a placeholder until we publish).
-const accountRef = computeAccountRef("okx-demo-account-bekci");
+const accountRef = computeAccountRef("okx-demo-account-leash");
 const agentRegistryId = "0";
 const agentAuth = privateKeyToAccount(generatePrivateKey()).address; // throwaway demo agent key
 const policyId = computePolicyId(owner.address, accountRef, FUJI_IDENTITY_REGISTRY, agentRegistryId);

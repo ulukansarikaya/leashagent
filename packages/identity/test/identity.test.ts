@@ -4,12 +4,12 @@ import { homedir } from "node:os";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPublicClient, createWalletClient, defineChain, http, type Address, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { mockIdentityRegistryAbi, mockIdentityRegistryBytecode } from "@bekci/chain";
-import type { Hex } from "@bekci/shared";
+import { mockIdentityRegistryAbi, mockIdentityRegistryBytecode } from "@leashagent/chain";
+import type { Hex } from "@leashagent/shared";
 import {
   Erc8004Registry,
   agentIdMatchesBinding,
-  bekciRegistration,
+  leashRegistration,
   formatAgentId,
   loadRegistration,
   parseAgentId,
@@ -38,25 +38,25 @@ describe("agentId", () => {
     expect(agentIdMatchesBinding(canon, mixed, 43113)).toBe(true);
     expect(agentIdMatchesBinding(canon.toLowerCase(), mixed, 43113)).toBe(false); // non-canonical spelling
     expect(agentIdMatchesBinding("eip155:43113:0x8004000000000000000000000000000000000001:042", b, 43113)).toBe(false);
-    expect(agentIdMatchesBinding("bekci-demo-agent", b, 43113)).toBe(false);
+    expect(agentIdMatchesBinding("leash-demo-agent", b, 43113)).toBe(false);
   });
 });
 
 describe("registration metadata", () => {
-  it("builds valid Bekci and agent cards", () => {
-    const b = bekciRegistration({ baseUrl: "https://bekci.example/" });
-    expect(b.services.map((e) => e.endpoint)).toContain("https://bekci.example/v1/intents");
+  it("builds valid Leash Agent and agent cards", () => {
+    const b = leashRegistration({ baseUrl: "https://leash.example/" });
+    expect(b.services.map((e) => e.endpoint)).toContain("https://leash.example/v1/intents");
     expect(b.x402Support).toBe(true);
-    expect(b.bekci.paymentNetwork).toBe("avalanche-fuji");
-    expect(tradingAgentRegistration({ name: "Demo", description: "d" }).bekci.kind).toBe("trading-agent");
+    expect(b.leash.paymentNetwork).toBe("avalanche-fuji");
+    expect(tradingAgentRegistration({ name: "Demo", description: "d" }).leash.kind).toBe("trading-agent");
   });
   it("rejects extra fields (no private data can ride along)", () => {
-    const b = bekciRegistration({ baseUrl: "https://bekci.example" });
+    const b = leashRegistration({ baseUrl: "https://leash.example" });
     expect(registrationSchema.safeParse({ ...b, okxApiKey: "secret" }).success).toBe(false);
   });
   it("round-trips through data: URI and rejects other schemes", async () => {
-    const b = bekciRegistration({ baseUrl: "https://bekci.example" });
-    expect(await loadRegistration(toDataUri(b))).toMatchObject({ name: "Bekci", bekci: { kind: "agent-security-gateway" } });
+    const b = leashRegistration({ baseUrl: "https://leash.example" });
+    expect(await loadRegistration(toDataUri(b))).toMatchObject({ name: "Leash Agent", leash: { kind: "agent-security-gateway" } });
     await expect(loadRegistration("file:///etc/passwd")).rejects.toThrow();
     await expect(loadRegistration("http://insecure.example/x.json")).rejects.toThrow();
   });
@@ -88,7 +88,7 @@ const agentOwner = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86
   }, 30_000);
   afterAll(() => { anvil?.kill(); });
 
-  it("publishes Bekci + agent and discovers Bekci by kind", async () => {
+  it("publishes Leash Agent + agent and discovers Leash Agent by kind", async () => {
     const asDeployer = new Erc8004Registry({
       publicClient: pub, registry, chainId: 31337, chain,
       walletClient: createWalletClient({ account: deployer, chain, transport: http() }), account: deployer,
@@ -98,16 +98,16 @@ const agentOwner = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86
       walletClient: createWalletClient({ account: agentOwner, chain, transport: http() }), account: agentOwner,
     });
 
-    const bekciId = await asDeployer.publishBekci(bekciRegistration({ baseUrl: "https://bekci.example" }));
+    const leashId = await asDeployer.publishLeash(leashRegistration({ baseUrl: "https://leash.example" }));
     const agentId = await asAgent.publishAgent(tradingAgentRegistration({ name: "Demo Trader", description: "SMA bot" }));
-    expect(bekciId).toBe(formatAgentId(31337, registry, "1"));
+    expect(leashId).toBe(formatAgentId(31337, registry, "1"));
     expect(agentId).toBe(formatAgentId(31337, registry, "2"));
 
-    await expect(asAgent.publishBekci(tradingAgentRegistration({ name: "x", description: "y" }))).rejects.toThrow(/kind/);
+    await expect(asAgent.publishLeash(tradingAgentRegistration({ name: "x", description: "y" }))).rejects.toThrow(/kind/);
 
     const found = await asAgent.discover("agent-security-gateway");
     expect(found).toHaveLength(1);
-    expect(found[0]!.registration.name).toBe("Bekci");
+    expect(found[0]!.registration.name).toBe("Leash Agent");
     expect(found[0]!.owner).toBe(deployer.address);
 
     const resolved = await asDeployer.resolve("2");

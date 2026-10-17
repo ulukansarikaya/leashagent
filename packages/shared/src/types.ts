@@ -429,7 +429,7 @@ export interface PaymentEntitlement {
 }
 
 export interface ServiceDiscovery {
-  publishBekci(metadata: unknown): Promise<string>;
+  publishLeash(metadata: unknown): Promise<string>;
   publishAgent(metadata: unknown): Promise<string>;
 }
 
@@ -455,7 +455,7 @@ export interface DecisionChainWriter {
 // ---------- Chain evidence status: gateway → dashboard (§6.7, §9 GET /v1/health) ----------
 // Additive contract agreed with Person 1 (gateway) for Person 2 (dashboard).
 
-/** `ChainOutbox` row states (Person 3's outbox); same keys as `@bekci/chain` OutboxStats. */
+/** `ChainOutbox` row states (Person 3's outbox); same keys as `@leashagent/chain` OutboxStats. */
 export const CHAIN_OUTBOX_STATES = ["pending", "submitted", "confirmed", "dead"] as const;
 export type ChainOutboxState = (typeof CHAIN_OUTBOX_STATES)[number];
 export type ChainOutboxStats = Record<ChainOutboxState, number>;

@@ -1,5 +1,5 @@
 import fuji from "../deployments/fuji.json" with { type: "json" };
-import type { Hex } from "@bekci/shared";
+import type { Hex } from "@leashagent/shared";
 
 export type Deployment = {
   network: string;
@@ -10,7 +10,7 @@ export type Deployment = {
   roles: { decisionLogOwner: Hex; decisionLogLogger: Hex };
   erc8004: { identityRegistry: Hex; reputationRegistry: Hex };
   x402: { facilitator: string; network: string; asset: Hex; assetName: string; assetVersion: string; assetDecimals: number };
-  identities: Partial<Record<"bekci" | "tradingAgent", { agentId: string; agentRegistryId: string; owner: Hex; tx: Hex }>>;
+  identities: Partial<Record<"leash" | "tradingAgent", { agentId: string; agentRegistryId: string; owner: Hex; tx: Hex }>>;
   demoPolicy: null | { policyId: Hex; owner: Hex; agentAuthAddress: Hex; policyURI: string; policyHash: Hex; version: number };
 };
 

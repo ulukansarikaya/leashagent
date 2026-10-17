@@ -2,18 +2,18 @@
  * Gateway under test. The acceptance suite talks to it over HTTP only (§9), so the same
  * tests run against the TEST/DEMO mock (default) or Person 1's real gateway:
  *
- *   BEKCI_GATEWAY_URL=https://… BEKCI_AGENT_KEY=0x… BEKCI_OWNER_KEY=0x… \
- *   BEKCI_POLICY_ID=0x… BEKCI_AGENT_ID=… npm run test:acceptance
+ *   LEASH_GATEWAY_URL=https://… LEASH_AGENT_KEY=0x… LEASH_OWNER_KEY=0x… \
+ *   LEASH_POLICY_ID=0x… LEASH_AGENT_ID=… npm run test:acceptance
  */
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type { Account } from "viem";
 import { generatePrivateKey } from "viem/accounts";
-import { privateKeyToAccount, type Hex } from "@bekci/shared";
-import { HeuristicAuditor } from "@bekci/auditor";
-import { HeuristicReaderModel, type ContentSource, type RawContent } from "@bekci/ingest";
-import { ChainOutbox, type DecisionLogPort } from "@bekci/chain";
-import { createGateway } from "@bekci/mock-gateway";
+import { privateKeyToAccount, type Hex } from "@leashagent/shared";
+import { HeuristicAuditor } from "@leashagent/auditor";
+import { HeuristicReaderModel, type ContentSource, type RawContent } from "@leashagent/ingest";
+import { ChainOutbox, type DecisionLogPort } from "@leashagent/chain";
+import { createGateway } from "@leashagent/mock-gateway";
 import { BENIGN_ARTICLE, DEMO_PRICE, POISONED_ARTICLE, demoPolicy } from "../../packages/mock-gateway/src/fixtures.js";
 
 export type Target = {
@@ -31,28 +31,28 @@ export type Target = {
 };
 
 export async function connectTarget(): Promise<Target> {
-  return process.env.BEKCI_GATEWAY_URL ? realTarget() : mockTarget();
+  return process.env.LEASH_GATEWAY_URL ? realTarget() : mockTarget();
 }
 
 async function realTarget(): Promise<Target> {
   const need = (k: string) => { const v = process.env[k]; if (!v) throw new Error(`acceptance against real gateway needs ${k}`); return v; };
-  const instId = process.env.BEKCI_TEST_INST ?? "BTC-USDT";
+  const instId = process.env.LEASH_TEST_INST ?? "BTC-USDT";
   // Resting buy at the bid: inside price-deviation limits, not immediately marketable.
-  const px: string = process.env.BEKCI_TEST_PX ?? await fetch(`https://www.okx.com/api/v5/market/ticker?instId=${instId}`)
+  const px: string = process.env.LEASH_TEST_PX ?? await fetch(`https://www.okx.com/api/v5/market/ticker?instId=${instId}`)
     .then((r) => r.json()).then((b: { data: { bidPx: string }[] }) => b.data[0]!.bidPx as string);
   return {
     kind: "real",
-    url: need("BEKCI_GATEWAY_URL").replace(/\/$/, ""),
-    agent: privateKeyToAccount(need("BEKCI_AGENT_KEY") as Hex),
-    owner: privateKeyToAccount(need("BEKCI_OWNER_KEY") as Hex),
+    url: need("LEASH_GATEWAY_URL").replace(/\/$/, ""),
+    agent: privateKeyToAccount(need("LEASH_AGENT_KEY") as Hex),
+    owner: privateKeyToAccount(need("LEASH_OWNER_KEY") as Hex),
     attacker: privateKeyToAccount(generatePrivateKey()),
-    policyId: need("BEKCI_POLICY_ID") as Hex,
-    agentId: need("BEKCI_AGENT_ID"),
+    policyId: need("LEASH_POLICY_ID") as Hex,
+    agentId: need("LEASH_AGENT_ID"),
     order: {
       instId, px,
-      smallSz: process.env.BEKCI_TEST_SMALL_SZ ?? "0.0001",
-      escalateSz: need("BEKCI_TEST_ESCALATE_SZ"),
-      overLimitSz: process.env.BEKCI_TEST_OVERLIMIT_SZ ?? "5",
+      smallSz: process.env.LEASH_TEST_SMALL_SZ ?? "0.0001",
+      escalateSz: need("LEASH_TEST_ESCALATE_SZ"),
+      overLimitSz: process.env.LEASH_TEST_OVERLIMIT_SZ ?? "5",
     },
     close: async () => {},
   };

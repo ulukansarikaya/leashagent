@@ -1,4 +1,4 @@
-import type { EpochSec } from "@bekci/shared";
+import type { EpochSec } from "@leashagent/shared";
 
 /** RawContent never leaves L1 (§6.1). */
 export type RawContent = { url?: string; fetchedAt: EpochSec; body: string };

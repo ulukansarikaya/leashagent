@@ -10,17 +10,17 @@ import { join, extname } from "node:path";
 import { recoverTypedDataAddress } from "viem";
 import { randomBytes } from "node:crypto";
 import {
-  APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, Reason, bindingIsConsistent, computeAuthHash, computeEvidenceHash, decCmp, decMul, hashCanonical,
+  APPROVAL_TYPES, EIP712_DOMAIN, PAUSE_TYPES, Reason, bindingIsConsistent, computeAuthHash, computeEvidenceHash, deriveClOrdId, decCmp, decMul, hashCanonical,
   recoverAgentIntentSigner, signedIntentRequestSchema,
   type Auditor, type AuditEvent, type ChainRecord, type ChainOutboxStats, type ChainWritePayload, type HealthChainStatus, type ChainVerdict, type Decision, type DecisionKind, type ExecStatus,
   type ExecutionAuthorization, type Hex, type IntentResponse, type NormalizedOrder, type OrderStatus,
   type PaymentEntitlement, type PolicyBinding, type ReadRecord, type RuleResult, type RuleViolation,
   type SignedApproval, type SignedIntentRequest, type SignedPauseCommand,
-} from "@bekci/shared";
-import { purchaseCredits, type CreditStore, type SettlementProvider } from "@bekci/payments";
-import type { OutboxEvent } from "@bekci/chain";
-import { AuditorUnavailable } from "@bekci/auditor";
-import { DefaultIngestService, IngestError, InMemoryReadRecorder, type ContentSource, type ReaderModel } from "@bekci/ingest";
+} from "@leashagent/shared";
+import { purchaseCredits, type CreditStore, type SettlementProvider } from "@leashagent/payments";
+import type { OutboxEvent } from "@leashagent/chain";
+import { AuditorUnavailable } from "@leashagent/auditor";
+import { DefaultIngestService, IngestError, InMemoryReadRecorder, type ContentSource, type ReaderModel } from "@leashagent/ingest";
 
 /** Subset of §5.6 Policy the mock enforces. */
 export type DemoPolicy = {
@@ -148,7 +148,7 @@ export function createGateway(d: GatewayDeps) {
     const fix = (x: string) => decMul(x, "1");
     return {
       tool: i.tool, instId: i.instId, side: i.side, ordType: i.ordType, sz: fix(i.sz),
-      px: i.px ? fix(i.px) : undefined, clOrdId: "bk" + hashCanonical([policyId, req.requestId]).slice(2, 32),
+      px: i.px ? fix(i.px) : undefined, clOrdId: deriveClOrdId(policyId, req.requestId),
     };
   }
 

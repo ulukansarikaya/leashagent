@@ -8,7 +8,7 @@ import {
   type Policy,
   type PolicyChainClient,
   type PolicyRecord,
-} from "@bekci/shared";
+} from "@leashagent/shared";
 import { policyRegistryAbi } from "./abi.js";
 
 export function createPolicyChainClient(publicClient: PublicClient, registryAddress: Address): PolicyChainClient {
@@ -172,7 +172,7 @@ export async function loadVerifiedPolicy(
 }
 
 /**
- * Chain-backed resolver for `@bekci/payments` purchaseCredits (structurally matches its DelegationResolver):
+ * Chain-backed resolver for `@leashagent/payments` purchaseCredits (structurally matches its DelegationResolver):
  * only a fully verified, active policy yields a delegation; anything else ⇒ undefined / inactive.
  */
 export function createPolicyDelegationResolver(client: PolicyChainClient, opts: { fetchImpl?: typeof fetch } = {}) {

@@ -1,4 +1,4 @@
-// Measure Avalanche Fuji confirmation latency for Bekçi's on-chain actions (SONPLAN §18):
+// Measure Avalanche Fuji confirmation latency for Leash Agent's on-chain actions (SONPLAN §18):
 // owner pause/unpause (PolicyRegistry.setPaused) and evidence writes (DecisionLog.logDecision).
 // Latency = wall time from broadcast to receipt (Avalanche finality is single-confirmation).
 // Run: npx tsx --env-file=.env scripts/fuji-finality.ts [samples=5]
@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createPublicClient, createWalletClient, http, keccak256, toHex, type Hex, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
-import { decisionLogAbi, policyRegistryAbi } from "@bekci/chain";
+import { decisionLogAbi, policyRegistryAbi } from "@leashagent/chain";
 
 const MANIFEST = new URL("../packages/chain/deployments/fuji.json", import.meta.url);
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));

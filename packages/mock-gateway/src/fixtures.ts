@@ -1,5 +1,5 @@
 // TEST/DEMO ONLY fixtures for the mock gateway.
-import { computeAccountRef, computePolicyId, formatAgentId, type Hex, type PolicyBinding } from "@bekci/shared";
+import { computeAccountRef, computePolicyId, formatAgentId, type Hex, type PolicyBinding } from "@leashagent/shared";
 import type { DemoPolicy } from "./index.js";
 
 /** Placeholder ERC-8004 identity for offline runs; real values come from Person 3's registry. */

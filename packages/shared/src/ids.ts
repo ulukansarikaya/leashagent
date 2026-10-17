@@ -49,9 +49,9 @@ export function requestIdToBytes32(requestId: UUID): Hex {
   return keccakUtf8(requestId);
 }
 
-/** clOrdId = "bk" + hex(keccak256(policyId ‖ utf8(requestId))).slice(0, 30) — 32 alphanumeric chars (§5.5). */
+/** clOrdId = "la" + hex(keccak256(policyId ‖ utf8(requestId))).slice(0, 30) — 32 alphanumeric chars (§5.5). */
 export function deriveClOrdId(policyId: Hex, requestId: UUID): string {
-  return "bk" + keccak256(concat([policyId, stringToHex(requestId)])).slice(2, 32);
+  return "la" + keccak256(concat([policyId, stringToHex(requestId)])).slice(2, 32);
 }
 
 /** AgentIntent.intentHash = keccak256(canonicalJson(intent)). */

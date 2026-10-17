@@ -1,5 +1,5 @@
-import { orderIntentSchema, type OrderIntent, type ReadSummary, type Signal } from "@bekci/shared";
-import { extractJson, type LlmClient } from "@bekci/llm";
+import { orderIntentSchema, type OrderIntent, type ReadSummary, type Signal } from "@leashagent/shared";
+import { extractJson, type LlmClient } from "@leashagent/llm";
 import type { MarketView } from "./market.js";
 
 export type ReviewInput = {

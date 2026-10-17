@@ -6,8 +6,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createPublicClient, createWalletClient, getAddress, http, type Hex, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
-import { canonicalJson, computeAccountRef, computePolicyId, formatAgentId, hashCanonical, type Policy } from "@bekci/shared";
-import { createPolicyChainClient, loadVerifiedPolicy, policyRegistryAbi } from "@bekci/chain";
+import { canonicalJson, computeAccountRef, computePolicyId, formatAgentId, hashCanonical, type Policy } from "@leashagent/shared";
+import { createPolicyChainClient, loadVerifiedPolicy, policyRegistryAbi } from "@leashagent/chain";
 
 const MANIFEST = new URL("../packages/chain/deployments/fuji.json", import.meta.url);
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));

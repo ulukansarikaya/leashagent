@@ -1,16 +1,16 @@
 {
-  "name": "@bekci/identity",
+  "name": "@leashagent/identity",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "dependencies": {
-    "@bekci/shared": "*",
+    "@leashagent/shared": "*",
     "viem": "^2.57.7",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@bekci/chain": "*"
+    "@leashagent/chain": "*"
   }
 }

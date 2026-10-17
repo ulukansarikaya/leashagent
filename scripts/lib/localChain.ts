@@ -8,9 +8,9 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { createPublicClient, createWalletClient, defineChain, http, type Abi, type Account, type Address, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { decisionLogAbi, decisionLogBytecode, mockIdentityRegistryAbi, mockIdentityRegistryBytecode } from "@bekci/chain";
+import { decisionLogAbi, decisionLogBytecode, mockIdentityRegistryAbi, mockIdentityRegistryBytecode } from "@leashagent/chain";
 
-// Anvil's well-known dev keys #0 (Bekçi operator / deployer) and #4 (DecisionLog LOGGER).
+// Anvil's well-known dev keys #0 (Leash Agent operator / deployer) and #4 (DecisionLog LOGGER).
 export const DEPLOYER = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 export const LOGGER = privateKeyToAccount("0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a");
 

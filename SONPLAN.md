@@ -1,19 +1,19 @@
-# Bekçi — System Architecture
+# Leash Agent — System Architecture
 
 > This document defines the architecture only: layers, contracts between layers, data models, state machines, storage, and interfaces.
 > It is written to be implemented in parallel by multiple coding agents. Each section aims to be precise enough to implement without consulting the others.
 > Points marked "Unverified" must be confirmed against external documentation during implementation.
-> "Bekçi" is Turkish for "watchman"; it is the working name and can be changed.
+> "Leash Agent" is the product name.
 
 ---
 
 ## 0. Summary
 
-**Bekçi** is a security gateway that holds the write authority to an OKX account on behalf of an AI trading agent. It validates the order intents the agent produces against the user's policy, executes only approved orders using an order-bound authorization, and makes every decision auditable.
+**Leash Agent** is a security gateway that holds the write authority to an OKX account on behalf of an AI trading agent. It validates the order intents the agent produces against the user's policy, executes only approved orders using an order-bound authorization, and makes every decision auditable.
 
-**Core separation:** The agent *proposes what to do* (reasoning). Bekçi *decides and performs what may be done* (authority). The two run in different processes with different credentials.
+**Core separation:** The agent *proposes what to do* (reasoning). Leash Agent *decides and performs what may be done* (authority). The two run in different processes with different credentials.
 
-**Defensible claim:** On an account managed by Bekçi, an order that violates the verified user policy and increases risk does not reach the exchange through Bekçi.
+**Defensible claim:** On an account managed by Leash Agent, an order that violates the verified user policy and increases risk does not reach the exchange through Leash Agent.
 
 **Conditions:** No other copy of the OKX write key exists; all write paths go through the gateway; the software works correctly.
 
@@ -50,7 +50,7 @@
 └───────────────┬───────────────────────────────────┬─────────────────┘
                 │ raw content                       │ signed intent
 ┌───────────────▼───────────────────────────────────▼─────────────────┐
-│                 BEKÇİ TRUST BOUNDARY (same operator)                 │
+│              LEASH AGENT TRUST BOUNDARY (same operator)              │
 │                                                                      │
 │  L1 Ingest Layer ──► L3 Intent Gateway ──► L4 Policy Layer           │
 │                                              │        ▲              │
@@ -70,7 +70,7 @@
 ```
 
 **Trust rules**
-- Every field coming from the agent is untrusted: derivable fields such as `riskIncreasing`, `notional`, `protective` are not taken from the agent; Bekçi computes them.
+- Every field coming from the agent is untrusted: derivable fields such as `riskIncreasing`, `notional`, `protective` are not taken from the agent; Leash Agent computes them.
 - External content is untrusted; only the structured summary produced by L1 goes to the agent.
 - L6 accepts only authorizations signed by L4; it does not remake L4's decision but verifies that the authorization matches the order.
 - User actions (policy, pause, approval) are valid only with the owner wallet's signature.
@@ -101,7 +101,7 @@
 | External source → L1 | `RawContent` | HTTP fetch (inside L1) | Untrusted |
 | L2 → L1 | `ReadRequest` | HTTP/function | Untrusted |
 | L1 → L2 | `ReadSummary` | HTTP/function | Structured, bounded fields |
-| L1 → L5 | `ReadRecord` | Function / store write | Bekçi record |
+| L1 → L5 | `ReadRecord` | Function / store write | Leash Agent record |
 | L2 → L3 | `SignedIntentRequest` | HTTP `POST /v1/intents` | Untrusted, signed |
 | L3 → L4 | `ValidatedIntent` | Function | Validated, normalized |
 | L4 ↔ L5 | `RiskSnapshot`, `ReservationRequest`, `ReservationResult` | Function (same transaction) | Internal |
@@ -204,7 +204,7 @@ export type ReadSummary = {         // the only thing the agent sees
   flags: ("contains_instructions" | "low_quality" | "duplicate")[];
 };
 
-export type ReadRecord = {          // the record Bekçi keeps; the auditor reads from here
+export type ReadRecord = {          // the record Leash Agent keeps; the auditor reads from here
   readId: UUID;
   policyId: Hex;
   fetchedAt: EpochSec;
@@ -286,7 +286,7 @@ export type ValidatedIntent = {
 **Normalization rules**
 - `sz` and `px` are rounded (down) to the instrument's `lotSz` and `tickSz`; if the result is 0, reject.
 - Decimals are brought to a fixed scale without trimming trailing zeros (e.g. 8 digits if the instrument scale is 8). `"50"`, `"50.0"`, `"50.00000000"` give the same output.
-- `clOrdId = "bk" + hex(keccak256(policyId ‖ requestId)).slice(0, 30)`; Unverified: OKX `clOrdId` length and character constraints.
+- `clOrdId = "la" + hex(keccak256(policyId ‖ requestId)).slice(0, 30)`; Unverified: OKX `clOrdId` length and character constraints.
 - Canonical JSON: keys alphabetical, no whitespace, UTF-8; number type is forbidden (only string and integer fields).
 
 ### 5.6 Policy
@@ -363,7 +363,7 @@ export type ReservationResult =
   | { ok: false; reasonCode: ReasonCode };
 ```
 
-**Notional calculation (Bekçi computes it; it is not taken from the agent)**
+**Notional calculation (Leash Agent computes it; it is not taken from the agent)**
 - `limit`: `sz × px`
 - `market` buy: `sz × ask × (1 + marketSlippageBufferBps/10000)`
 - `market` sell: `sz × bid` (counted as risk-reducing, see 6.4)
@@ -379,8 +379,8 @@ export type RuleResult = {
   violations: RuleViolation[];
   escalate: boolean;                     // within limits but human approval required
   derived: {
-    riskIncreasing: boolean;             // computed by Bekçi
-    verifiedProtectiveAction: boolean;   // computed by Bekçi
+    riskIncreasing: boolean;             // computed by Leash Agent
+    verifiedProtectiveAction: boolean;   // computed by Leash Agent
     notionalUsdt: Dec;
     referencePrice?: Dec;
     priceDeviationBps?: number;
@@ -439,7 +439,7 @@ export type ExecutionAuthorization = {
 };
 ```
 
-**EIP-712 domain:** `{ name: "Bekci", version: "1", chainId: 43113 }` (no `verifyingContract`; the signature is verified off-chain).
+**EIP-712 domain:** `{ name: "LeashAgent", version: "1", chainId: 43113 }` (no `verifyingContract`; the signature is verified off-chain).
 
 ### 5.10 Human actions (user signatures)
 
@@ -554,7 +554,7 @@ export type OrderStatus =
 **Constraints**
 - No OKX key in its environment; ATK is installed with only the `market` module and `--read-only`.
 - It reaches external text only through `ReadSummary`.
-- Network calls other than to Bekçi are limited by an allowlist (only ATK public market and the L1/L3 endpoints).
+- Network calls other than to Leash Agent are limited by an allowlist (only ATK public market and the L1/L3 endpoints).
 
 **Output:** `SignedIntentRequest` → L3.
 
@@ -589,7 +589,7 @@ export type OrderStatus =
 - `ApprovalHandler`: verifies `SignedApproval` and restarts the flow.
 
 **Derived fields**
-- `riskIncreasing`: spot `buy` is always `true`. Spot `sell` is risk-reducing only when `availableSellBalance = totalBaseBalance - lockedByOpenSellOrders - reservedSellQuantity` is fresh and `availableSellBalance >= sz`; otherwise the order is invalid (`REJECTED_POLICY`) because Bekçi does not permit a sell that could require unavailable inventory or create unintended exposure. `cancel` → `false`. Agent-provided balance/protective flags are ignored.
+- `riskIncreasing`: spot `buy` is always `true`. Spot `sell` is risk-reducing only when `availableSellBalance = totalBaseBalance - lockedByOpenSellOrders - reservedSellQuantity` is fresh and `availableSellBalance >= sz`; otherwise the order is invalid (`REJECTED_POLICY`) because Leash Agent does not permit a sell that could require unavailable inventory or create unintended exposure. `cancel` → `false`. Agent-provided balance/protective flags are ignored.
 - `verifiedProtectiveAction`: `true` only for `spot_cancel_order` and only if an OKX query has verified that the order to be cancelled is an open order of this `accountRef`. If the data is stale, `false`. No other action is considered protective.
 
 **Rule set (`RuleEngine`)**
@@ -613,7 +613,7 @@ export type OrderStatus =
 **Decision order**
 1. L3 has authenticated, schema-validated and normalized the request; L4 must not assume the policy state itself is valid yet.
 2. Load and verify policy hash, version, delegation validity/revocation and required freshness. If these cannot be verified → `BLOCK 003`. A pause value from an unverified/stale policy state is never trusted.
-3. Obtain fresh risk/market state and derive `riskIncreasing`, `verifiedProtectiveAction`, notional and reference price inside Bekçi.
+3. Obtain fresh risk/market state and derive `riskIncreasing`, `verifiedProtectiveAction`, notional and reference price inside Leash Agent.
 4. `paused` + not `verifiedProtectiveAction` → `BLOCK 100`.
 5. If the request is risk-increasing, check service entitlement/credit availability through `PaymentEntitlement`. Missing entitlement → `REJECTED_PAYMENT 004`. This is a check/reservation only; no final credit is burned for `BLOCK` or `PENDING`. Verified protective cancels require no credit.
 6. Run deterministic rules. Any violation → `BLOCK` (101–199); the auditor is not called. Rule 104 applies only to `riskIncreasing` orders.
@@ -1043,7 +1043,7 @@ shared  ←  executor  ← (PolicyStateProvider through an authenticated read-on
 shared  ←  gateway  ← (ingest, chain, executor, auditor only through interfaces)
 shared  ←  dashboard (HTTP only)
 ```
-- `agent` depends only on `shared` and Bekçi's HTTP endpoints; it does not import `gateway`, `executor` or `chain`.
+- `agent` depends only on `shared` and Leash Agent's HTTP endpoints; it does not import `gateway`, `executor` or `chain`.
 - `executor` uses `ExecutionAuthorization` and `NormalizedOrder` from `shared`, not `gateway`'s internal types. Its policy recheck is performed through `PolicyStateProvider` backed by an authenticated chain/read adapter; it must not call an unauthenticated gateway endpoint.
 - `dashboard` imports no internal package; it uses only `shared` types and HTTP/SSE.
 
@@ -1078,7 +1078,7 @@ Secret values are provided through environment variables or a secret manager; th
 - **Executor side (L6):** writing and canceling orders with the trade-enabled key. No other component sees this key.
 - **Abstraction:** the `AtkClient` interface wraps ATK (CLI or MCP); the upper layers do not know ATK's transport form.
 - **Unverified:** (a) the confirmation-prompt behavior of ATK write operations under programmatic use, (b) demo account/profile selection, (c) the quantity-unit (`tgtCcy`) semantics for market orders, (d) `clOrdId` constraints, (e) TR site support. These must be tested in the `AtkClient` implementation; depending on the result, only `AtkClient` and `normalizeOrder` change.
-- **P0 market-buy spike:** before relying on notional/risk calculations, place/query a minimal OKX demo spot market-buy and verify the exact `sz` unit and `tgtCcy` behavior through the actual ATK path. Bekçi must set `tgtCcy` explicitly when required (expected candidate: `base_ccy`) and must normalize/notional-calculate from the confirmed exchange semantics. If the observed behavior differs, update `NormalizedOrder`, `normalizeOrder`, and the notional calculation together before enabling market buys.
+- **P0 market-buy spike:** before relying on notional/risk calculations, place/query a minimal OKX demo spot market-buy and verify the exact `sz` unit and `tgtCcy` behavior through the actual ATK path. Leash Agent must set `tgtCcy` explicitly when required (expected candidate: `base_ccy`) and must normalize/notional-calculate from the confirmed exchange semantics. If the observed behavior differs, update `NormalizedOrder`, `normalizeOrder`, and the notional calculation together before enabling market buys.
 
 ---
 
@@ -1124,14 +1124,14 @@ The responsibilities are deliberately separate:
 - **ERC-8004:** public discovery/identity metadata and, later, validation/reputation references. It is not runtime authentication and does not grant authority over an OKX account.
 - **x402:** payment/service entitlement. It is not an execution authorization and cannot override policy, identity, risk, pause, or executor checks.
 - **Agent EIP-712 signature + PolicyRegistry delegation:** runtime authentication and user authorization.
-- **Bekçi ExecutionAuthorization:** the only order-bound authorization accepted by L6.
-- **TEE:** optional trust hardening for Bekçi's own enforcement/signing boundary; not required for the core protocol to function.
+- **Leash Agent ExecutionAuthorization:** the only order-bound authorization accepted by L6.
+- **TEE:** optional trust hardening for Leash Agent's own enforcement/signing boundary; not required for the core protocol to function.
 
 The end-to-end product flow is:
 
 ```text
 ERC-8004 registry
-      │ discover Bekçi service
+      │ discover Leash Agent service
       ▼
 Trading Agent ── x402 payment ──► Service entitlement / credits
       │
@@ -1153,7 +1153,7 @@ L4 signer and, later, L6 trade credential ──► attested TEE boundary
 
 ### 21.2 x402 — Service Payment and Credits (P1)
 
-**Purpose:** allow an autonomous agent to purchase Bekçi security checks without turning payment into security authority.
+**Purpose:** allow an autonomous agent to purchase Leash Agent security checks without turning payment into security authority.
 
 For the hackathon, the product model is **one settled x402 payment → 5 risk-increasing intent credits**. The exact facilitator/network integration is an implementation-time dependency and remains **Unverified** until tested.
 
@@ -1198,13 +1198,13 @@ The concrete x402 facilitator/provider lives behind this interface. Core package
 
 ### 21.3 ERC-8004 — Discovery, Identity Metadata and Validation (P1/P2)
 
-**P1 purpose:** publish Bekçi and the trading agent as discoverable agent/service identities. The runtime authentication address used by L3 remains the authority for signed requests.
+**P1 purpose:** publish Leash Agent and the trading agent as discoverable agent/service identities. The runtime authentication address used by L3 remains the authority for signed requests.
 
-Bekçi service metadata should expose only public information, for example:
+Leash Agent service metadata should expose only public information, for example:
 
 ```json
 {
-  "name": "Bekci",
+  "name": "Leash Agent",
   "kind": "agent-security-gateway",
   "capabilities": ["okx-spot-policy-enforcement", "signed-execution-authorization", "audit-evidence"],
   "endpoints": { "intents": "/v1/intents", "health": "/v1/health" },
@@ -1222,7 +1222,7 @@ The concrete ERC-8004 registry addresses, metadata format and SDK/API are **Unve
 - deterministic policy replay, which can be recomputed;
 - auditor/Jev semantic judgment, which is heuristic and must not be represented as deterministic proof.
 
-Reputation, if later used, must come from external feedback/validators; Bekçi's own blocked-order counters are not independent reputation.
+Reputation, if later used, must come from external feedback/validators; Leash Agent's own blocked-order counters are not independent reputation.
 
 ### 21.4 TEE — Optional Attested Enforcement Hardening (P2)
 
@@ -1234,12 +1234,12 @@ Attestation verification must bind at least:
 
 - an allowlisted software measurement/version;
 - freshness via a verifier challenge/nonce;
-- the Bekçi authorization public key;
+- the Leash Agent authorization public key;
 - the expected service/environment identity.
 
 L6 accepts an authorization signer only when the signer key is associated with a currently acceptable attestation. Tests must reject a wrong measurement, stale attestation and invalid signature.
 
-**Critical limitation:** if `OKX_TRADE_*` remains outside the TEE in L6, the executor/operator is still trusted not to bypass Bekçi. Therefore TEE Lite must not be described as "all execution is protected by TEE."
+**Critical limitation:** if `OKX_TRADE_*` remains outside the TEE in L6, the executor/operator is still trusted not to bypass Leash Agent. Therefore TEE Lite must not be described as "all execution is protected by TEE."
 
 **Production target:** move the policy/risk enforcement path and OKX trade credential access into the attested enforcement boundary, with key rotation and revocation. TEE does not prove that policy code is bug-free, the auditor is correct, market data is truthful, OKX fills are accurate, or chain logging is complete.
 
@@ -1278,7 +1278,7 @@ Optional integrations are exposed through interfaces so the core remains provide
 
 ```ts
 export interface ServiceDiscovery {
-  publishBekci(metadata: unknown): Promise<string>;
+  publishLeash(metadata: unknown): Promise<string>;
   publishAgent(metadata: unknown): Promise<string>;
 }
 
@@ -1357,11 +1357,11 @@ The engineering architecture above is the source of truth for implementation. Th
 
 - Auditor/Jev adapter and attack scenarios.
 - x402 payment → durable service credits.
-- ERC-8004 Bekçi + trading-agent discovery identities.
+- ERC-8004 Leash Agent + trading-agent discovery identities.
 - Dashboard/live evidence feed and emergency pause.
 - INV-17 through INV-21 passing for implemented extensions.
 
-**Exit condition:** the agent can discover Bekçi, obtain service entitlement, authenticate, request an order, and receive a policy-enforced result without weakening P0.
+**Exit condition:** the agent can discover Leash Agent, obtain service entitlement, authenticate, request an order, and receive a policy-enforced result without weakening P0.
 
 ### P2 — Trust hardening / polish
 
@@ -1384,19 +1384,19 @@ The engineering architecture above is the source of truth for implementation. Th
 
 The architecture and hackathon story are intentionally aligned:
 
-1. The trading agent discovers Bekçi through ERC-8004 metadata (when P1 is enabled).
+1. The trading agent discovers Leash Agent through ERC-8004 metadata (when P1 is enabled).
 2. It obtains service entitlement through x402; payment creates credits but grants no trading authority.
 3. The authenticated agent signs an `OrderIntent`; the user's on-chain policy/delegation determines what that agent may request.
-4. Bekçi normalizes the order, applies deterministic policy/risk checks, and optionally tightens the decision with the auditor.
+4. Leash Agent normalizes the order, applies deterministic policy/risk checks, and optionally tightens the decision with the auditor.
 5. An allowed order receives a single-use, order-bound EIP-712 `ExecutionAuthorization`.
 6. The isolated executor re-verifies the authorization and current policy state immediately before the OKX write.
 7. Local append-only evidence is produced and asynchronously anchored to Avalanche.
 8. A tampered order, replay, impersonation, forbidden request or over-limit request is rejected before the exchange write.
-9. If TEE Lite is enabled, the executor additionally verifies that the authorization signer belongs to the accepted attested Bekçi environment.
+9. If TEE Lite is enabled, the executor additionally verifies that the authorization signer belongs to the accepted attested Leash Agent environment.
 
 **Final defensible claim remains unchanged:**
 
-> On an account managed by Bekçi, an order that violates the verified user policy and increases risk does not reach the exchange through Bekçi.
+> On an account managed by Leash Agent, an order that violates the verified user policy and increases risk does not reach the exchange through Leash Agent.
 
 x402, ERC-8004 and TEE strengthen the product story, distribution/economics and trust model respectively; none expands this claim beyond the conditions and limitations in Sections 0 and 20.
 
@@ -1490,7 +1490,7 @@ The split is designed to minimize overlapping files. `packages/shared/types.ts`,
 |---|---|---|---|---|
 | **1 — Security Core + OKX Execution** | L3/L4/L5/L6, SQLite, policy/risk engine, normalization, reservation, rate counter, executor, OKX/ATK | `gateway`, `executor`, DB migrations; deterministic rules; `PolicyStateProvider`; `GUARD_SIGNER_ADDRESS`; executor nonce store; `clOrdId`; UNKNOWN reconciliation; market-buy spike; invariant tests for auth/order tamper/replay/race | Does not implement x402/ERC-8004 contracts/adapters or agent LLM. Consumes frozen shared types and contract client from Person 3 | Allowed demo order reaches OKX once; forbidden/tampered/replayed/over-limit orders never do; timeout never causes blind resend |
 | **2 — Agent + AI + Dashboard/Demo** | L1/L2, agent loop, Jev/auditor adapter, attack scenarios, dashboard/SSE UX | ingest isolation; signal/reason/intent creation; EIP-712 intent signing using frozen shared helper; Jev adapter; protected vs unprotected injection demo; policy/decision/execution UI; human approval + emergency-pause UI; end-to-end demo script | No OKX trade key; no policy-rule duplication in UI/agent; no contract schema changes | Agent autonomously produces signed intents; injection demo is reproducible; dashboard shows ALLOW/BLOCK/PENDING/REJECTED_PAYMENT and evidence |
-| **3 — Web3 + Authorization + Payments** | Avalanche contracts/client, EIP-712 shared crypto, x402, ERC-8004, durable chain outbox | maintain frozen `shared` auth/types with Person 1; `PolicyRegistry`, `DecisionLog`, Fuji deploy/tests; ERC-8004 identity binding; x402 payer/credit lifecycle; chain writer/outbox; contract ABI/client; negative contract tests | Does not change L4 risk semantics or L6 OKX execution path. TEE is roadmap only | unauthorized/duplicate/invalid transitions revert; policyId matches shared helper; payer == delegated auth address; x402 duplicate cannot mint/consume twice; agent/Bekçi identities discoverable |
+| **3 — Web3 + Authorization + Payments** | Avalanche contracts/client, EIP-712 shared crypto, x402, ERC-8004, durable chain outbox | maintain frozen `shared` auth/types with Person 1; `PolicyRegistry`, `DecisionLog`, Fuji deploy/tests; ERC-8004 identity binding; x402 payer/credit lifecycle; chain writer/outbox; contract ABI/client; negative contract tests | Does not change L4 risk semantics or L6 OKX execution path. TEE is roadmap only | unauthorized/duplicate/invalid transitions revert; policyId matches shared helper; payer == delegated auth address; x402 duplicate cannot mint/consume twice; agent/Leash Agent identities discoverable |
 
 ### 26.1 Integration checkpoints
 
