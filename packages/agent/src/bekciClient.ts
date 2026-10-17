@@ -3,11 +3,12 @@ import type { Account } from "viem";
 import { signAgentRead, type Hex, type IntentResponse, type ReadSummary, type SignedIntentRequest } from "@bekci/shared";
 
 /** Egress allowlist (§6.2): the agent may only talk to Bekçi and public market data. */
-export function guardedFetch(allowedOrigins: string[]): typeof fetch {
+export function guardedFetch(allowedOrigins: string[], inner: typeof fetch = globalThis.fetch): typeof fetch {
+  // `inner` is captured now so replacing globalThis.fetch with the guard cannot recurse.
   return (input, init) => {
     const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
     if (!allowedOrigins.includes(url.origin)) return Promise.reject(new Error(`egress blocked: ${url.origin}`));
-    return fetch(input, init);
+    return inner(input, init);
   };
 }
 

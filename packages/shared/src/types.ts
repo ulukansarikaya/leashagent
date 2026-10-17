@@ -1,11 +1,15 @@
-// Bekçi shared types — transcribed from SONPLAN.md §5. Person 1 + 3 own the freeze;
-// this copy exists so the agent/ingest/dashboard packages can build against it.
+// PROVISIONAL — Bekçi shared types transcribed from SONPLAN.md §5.
+// Person 1 + 3 own the canonical packages/shared/types.ts. When it lands, this file,
+// eip712.ts, identity.ts, reasons.ts and schemas.ts are deleted and Görev 2 imports the
+// frozen versions instead (see packages/shared/PROVISIONAL.md). Do not extend these types.
 export type Hex = `0x${string}`;
 export type Dec = string;
 export type EpochSec = number;
 export type UUID = string;
 export type Tool = "spot_place_order" | "spot_cancel_order";
 export type ReasonCode = number;
+
+export type { PolicyBinding } from "./identity.js";
 
 export type AgentIdentity = {
   agentId: string;

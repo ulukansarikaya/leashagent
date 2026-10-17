@@ -15,10 +15,18 @@ if (leaked.length) {
 
 const need = (k: string) => process.env[k] ?? (console.error(`missing ${k}`), process.exit(1));
 const account = privateKeyToAccount(need("AGENT_AUTH_KEY") as Hex);
-const bekciUrl = process.env.BEKCI_URL ?? "http://127.0.0.1:8787";
+// Must point at Person 1's real gateway. No default, so a demo URL is never picked up silently.
+const bekciUrl = need("BEKCI_URL");
 const okxBase = process.env.OKX_PUBLIC_BASE ?? "https://www.okx.com";
 const http = guardedFetch([new URL(bekciUrl).origin, new URL(okxBase).origin]);
 globalThis.fetch = http; // every outbound call in this process goes through the allowlist
+
+// The mock gateway is test/demo only: refuse it unless explicitly running a demo.
+const health = (await http(`${bekciUrl}/v1/health`).then((r) => r.json()).catch(() => ({}))) as { gateway?: string };
+if (health.gateway === "mock" && process.env.AGENT_ALLOW_MOCK !== "1") {
+  console.error("BEKCI_URL points at the TEST/DEMO mock gateway; set AGENT_ALLOW_MOCK=1 only for offline demos");
+  process.exit(1);
+}
 
 const llm = llmFromEnv("AGENT_LLM");
 const agent = new TradingAgent(
