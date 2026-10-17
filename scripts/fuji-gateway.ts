@@ -15,7 +15,7 @@ g.server.listen(PORT, "127.0.0.1", () => {
   console.log(`policy   ${g.policyId} (v${g.record.version}, agent ${g.record.agentAuthAddress})`);
   console.log(`evidence ${FUJI_DEPLOYMENT.explorer}/address/${FUJI_DEPLOYMENT.contracts.DecisionLog.address}`);
   console.log(`x402     POST ${url}/v1/credits  (${g.settlementMode} settlement)`);
-  console.log(`dashboard ${url}/?policyId=${g.policyId} (if served)`);
+  console.log(`dashboard ${url}/?policyId=${g.policyId}`);
 });
 const shutdown = () => { g.server.close(); g.app.close(); process.exit(0); };
 process.on("SIGINT", shutdown);

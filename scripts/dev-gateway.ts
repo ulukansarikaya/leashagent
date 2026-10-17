@@ -12,6 +12,7 @@
  *       DecisionLog writes go to an in-memory port unless DEV_REAL_CHAIN=1 (then Fuji, with
  *       CHAIN_RPC_URL / DECISION_LOG_ADDRESS / LOGGER_PRIVATE_KEY — real transactions).
  */
+import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { avalancheFuji } from "viem/chains";
@@ -145,7 +146,7 @@ const reg = await app.registerPolicy(policy.binding.policyId);
 if (!reg.ok) throw new Error(`policy failed to verify: ${reg.reason}`);
 app.startJobs(5_000, 500);
 
-const server = createGatewayServer(app);
+const server = createGatewayServer(app, { dashboardDir: fileURLToPath(new URL("../packages/dashboard/public", import.meta.url)) });
 server.listen(PORT, "127.0.0.1", () => {
   const url = `http://127.0.0.1:${PORT}`;
   console.log(`Leash Agent dev gateway on ${url}  (FakeAtk — nothing reaches OKX)\n`);
@@ -159,7 +160,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`export LEASH_TEST_SMALL_SZ=0.0001`);
   console.log(`export LEASH_TEST_ESCALATE_SZ=0.006`);
   console.log(`export LEASH_TEST_OVERLIMIT_SZ=5`);
-  console.log(`\n# dashboard: ${url}/?policyId=${policy.binding.policyId} (if served)`);
+  console.log(`\n# dashboard: ${url}/?policyId=${policy.binding.policyId}`);
 });
 
 const shutdown = () => {

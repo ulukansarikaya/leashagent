@@ -135,6 +135,8 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
     const d = app.store.getDecision(row.policyId, requestId);
     const body: Record<string, unknown> = { ...toIntentResponse(row) };
     if (row.normalizedOrderHash) body.normalizedOrderHash = row.normalizedOrderHash;
+    // The exact order L6 will send (no secrets); the dashboard shows it. agentReason stays masked.
+    if (row.normalizedOrderJson) body.order = JSON.parse(row.normalizedOrderJson) as NormalizedOrder;
     if (d) {
       body.decision = {
         kind: d.kind, reasonCode: d.reasonCode, policyVersion: d.policyVersion, decidedAt: d.decidedAt,

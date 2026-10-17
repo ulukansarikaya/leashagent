@@ -37,14 +37,19 @@ async function loadPolicy() {
   const p = await fetch(`/v1/policy/${id}`).then((r) => r.json());
   policy = p.policy;
   paused = p.paused;
+  // Canonical §5.6 Policy nests limits/auditor; the TEST/DEMO gateway uses a flat shape.
+  const limit = (k) => policy.limits?.[k] ?? policy[k];
+  const auditorOn = policy.auditor ? policy.auditor.mode === "enabled" : !!policy.auditorEnabled;
+  const chain = typeof p.chain === "string" ? p.chain
+    : p.chain?.verified ? `hash zincirle doğrulandı ✓ (${p.chain.source})` : `doğrulanamadı ✗ ${p.chain?.reason ?? ""}`;
   const rows = [
     ["policyId", short(policy.policyId ?? policy.binding?.policyId)], ["sürüm", policy.policyVersion],
     ["sahip", policy.binding?.owner ?? policy.owner], ["agent", policy.binding?.agentId ?? policy.agentId],
     ["ERC-8004", policy.binding ? `${short(policy.binding.agentRegistry)} #${policy.binding.agentRegistryId}` : "—"],
     ["accountRef", short(policy.binding?.accountRef)],
     ["görev", policy.mandate], ["enstrümanlar", policy.allowedInstruments.join(", ")],
-    ["tek emir max", `${policy.maxOrderNotionalUsdt} USDT`], ["onay eşiği", `${policy.escalateAboveUsdt} USDT`],
-    ["auditor", policy.auditorEnabled ? "açık" : "kapalı"], ["policyHash", short(p.policyHash)], ["zincir", p.chain],
+    ["tek emir max", `${limit("maxOrderNotionalUsdt")} USDT`], ["onay eşiği", `${limit("escalateAboveUsdt")} USDT`],
+    ["auditor", auditorOn ? "açık" : "kapalı"], ["policyHash", short(p.policyHash)], ["zincir", chain],
   ];
   $("policyBody").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
   renderPaused();
@@ -77,6 +82,20 @@ function renderPaused() {
   $("pauseBtn").textContent = paused ? "Devam ettir" : "Acil durdur";
 }
 
+/**
+ * The real gateway's intent_received event carries no order (agentReason is masked by design);
+ * the normalized order comes from GET /v1/intents/:id. Fetched once per request.
+ */
+const orderRequested = new Set();
+async function loadOrder(requestId) {
+  if (orderRequested.has(requestId)) return;
+  orderRequested.add(requestId);
+  try {
+    const d = await fetch(`/v1/intents/${encodeURIComponent(requestId)}`).then((r) => r.json());
+    if (d.order) { upsert(requestId, { order: d.order }); render(); }
+  } catch { /* row keeps showing without order details */ }
+}
+
 function upsert(requestId, patch) {
   const o = orders.get(requestId) ?? { requestId, ts: now() };
   Object.assign(o, patch);
@@ -91,8 +110,13 @@ function onEvent(ev) {
   $("chainOk").textContent = chainOk ? "bağlı ✓" : "KIRIK ✗";
 
   const p = ev.payload ?? {};
-  if (ev.type === "intent_received") upsert(ev.requestId, { ts: ev.ts, order: p.order, reason: p.agentReason, status: "RECEIVED" });
-  if (ev.type === "intent_rejected" && ev.requestId) upsert(ev.requestId, { ts: ev.ts, status: p.status, code: p.reasonCode, note: p.message });
+  if (ev.type === "intent_received") {
+    upsert(ev.requestId, { ts: ev.ts, order: p.order, reason: p.agentReason, status: "RECEIVED" });
+    if (!p.order) loadOrder(ev.requestId);
+  }
+  // The real gateway puts a rejected request's id in the payload (the event itself has none).
+  const rejectedId = ev.requestId ?? p.requestId;
+  if (ev.type === "intent_rejected" && rejectedId) upsert(rejectedId, { ts: ev.ts, status: p.status, code: p.reasonCode, note: p.message });
   if (ev.type === "decision") {
     // ALLOW is only a decision; ALLOWED is set when the authorization is issued.
     const st = p.expired ? "EXPIRED" : p.reasonCode === 4 ? "REJECTED_PAYMENT" : p.kind === "BLOCK" ? "BLOCKED" : p.kind === "PENDING" ? "PENDING" : "POLICY_CHECKED";
@@ -189,5 +213,11 @@ await loadPolicy().catch(() => ($("policyBody").innerHTML = "<dt>hata</dt><dd>po
 const es = new EventSource("/v1/events");
 es.onopen = () => { $("conn").textContent = "canlı"; $("conn").className = "pill s-ALLOWED"; };
 es.onerror = () => { $("conn").textContent = "bağlantı koptu"; $("conn").className = "pill s-BLOCKED"; };
-es.onmessage = (m) => onEvent(JSON.parse(m.data));
+// The gateway sends named SSE events (`event: <AuditEvent.type>`); EventSource delivers those only to
+// matching listeners, never to onmessage. Unnamed events (TEST/DEMO gateway) still go to onmessage.
+const AUDIT_EVENT_TYPES = ["intent_received", "intent_rejected", "decision", "approval", "authorization_issued",
+  "execution", "reconciliation", "pause", "policy_loaded", "read_recorded", "chain_write"];
+const handle = (m) => onEvent(JSON.parse(m.data));
+for (const t of AUDIT_EVENT_TYPES) es.addEventListener(t, handle);
+es.onmessage = handle;
 refreshChainStats();

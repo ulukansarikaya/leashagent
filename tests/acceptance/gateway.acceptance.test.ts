@@ -246,6 +246,16 @@ describe("dashboard contract: chain evidence (shared ChainOutboxStats / ChainWri
   });
 });
 
+describe("dashboard contract: order details", () => {
+  it("GET /v1/intents/:id returns the normalized order, and it hashes to normalizedOrderHash", async () => {
+    const r = await submit(await builder.build(limitBuy(t.order.smallSz), "x", []));
+    const d = await fetch(`${t.url}/v1/intents/${r.requestId}`).then((x) => x.json());
+    expect(d.order).toMatchObject({ tool: "spot_place_order", instId: t.order.instId, side: "buy", ordType: "limit" });
+    expect(hashCanonical(d.order)).toBe(d.normalizedOrderHash);
+    expect(JSON.stringify(d)).not.toContain("agentReason");
+  });
+});
+
 describe("evidence", () => {
   it("audit event stream forms an unbroken hash chain", async () => {
     const evs = await events();
