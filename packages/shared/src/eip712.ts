@@ -1,5 +1,5 @@
-import { getAddress, hashTypedData, recoverTypedDataAddress } from "viem";
-import type { LocalAccount } from "viem/accounts";
+import { getAddress, hashTypedData, recoverTypedDataAddress, type Account } from "viem";
+import { keccakUtf8 } from "./canonical.js";
 import { computeIntentHash, computeReasonHash } from "./ids.js";
 import type {
   ExecutionAuthorization,
@@ -50,7 +50,30 @@ export const EIP712_TYPES = {
     { name: "nonce", type: "bytes16" },
     { name: "issuedAt", type: "uint64" },
   ],
+  /** ReadRequest signature (§5.3 has agentSignature but no type); queryHash = keccak256(query). */
+  AgentRead: [
+    { name: "requestId", type: "string" },
+    { name: "policyId", type: "bytes32" },
+    { name: "source", type: "string" },
+    { name: "queryHash", type: "bytes32" },
+  ],
 } as const;
+
+// Per-message type sets (viem accepts either these or the combined EIP712_TYPES).
+export const EIP712_DOMAIN = BEKCI_DOMAIN;
+export const AGENT_INTENT_TYPES = { AgentIntent: EIP712_TYPES.AgentIntent } as const;
+export const AUTHORIZATION_TYPES = { ExecutionAuthorization: EIP712_TYPES.ExecutionAuthorization } as const;
+export const APPROVAL_TYPES = { ApprovalDecision: EIP712_TYPES.ApprovalDecision } as const;
+export const PAUSE_TYPES = { PauseCommand: EIP712_TYPES.PauseCommand } as const;
+export const AGENT_READ_TYPES = { AgentRead: EIP712_TYPES.AgentRead } as const;
+
+export type UnsignedIntentRequest = Omit<SignedIntentRequest, "agentSignature">;
+type UnsignedRead = { requestId: string; policyId: Hex; source: string; query: string };
+
+function typedSigner(account: Account) {
+  if (!account.signTypedData) throw new Error("account cannot sign typed data");
+  return account.signTypedData.bind(account);
+}
 
 type Unsigned<T, K extends keyof T> = Omit<T, K>;
 
@@ -96,6 +119,10 @@ export function approvalMessage(a: Unsigned<SignedApproval, "ownerSignature">) {
   };
 }
 
+export function agentReadMessage(r: UnsignedRead) {
+  return { requestId: r.requestId, policyId: r.policyId, source: r.source, queryHash: keccakUtf8(r.query) };
+}
+
 export function pauseMessage(p: Unsigned<SignedPauseCommand, "ownerSignature">) {
   return { policyId: p.policyId, paused: p.paused, nonce: p.nonce, issuedAt: BigInt(p.issuedAt) };
 }
@@ -103,10 +130,10 @@ export function pauseMessage(p: Unsigned<SignedPauseCommand, "ownerSignature">) 
 // ---------- signing ----------
 
 export async function signAgentIntent(
-  account: LocalAccount,
+  account: Account,
   req: Unsigned<SignedIntentRequest, "agentSignature">,
 ): Promise<SignedIntentRequest> {
-  const agentSignature = await account.signTypedData({
+  const agentSignature = await typedSigner(account)({
     domain: BEKCI_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "AgentIntent",
@@ -116,10 +143,10 @@ export async function signAgentIntent(
 }
 
 export async function signAuthorization(
-  account: LocalAccount,
+  account: Account,
   a: Unsigned<ExecutionAuthorization, "signature">,
 ): Promise<ExecutionAuthorization> {
-  const signature = await account.signTypedData({
+  const signature = await typedSigner(account)({
     domain: BEKCI_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "ExecutionAuthorization",
@@ -129,10 +156,10 @@ export async function signAuthorization(
 }
 
 export async function signApproval(
-  account: LocalAccount,
+  account: Account,
   a: Unsigned<SignedApproval, "ownerSignature">,
 ): Promise<SignedApproval> {
-  const ownerSignature = await account.signTypedData({
+  const ownerSignature = await typedSigner(account)({
     domain: BEKCI_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "ApprovalDecision",
@@ -142,16 +169,26 @@ export async function signApproval(
 }
 
 export async function signPauseCommand(
-  account: LocalAccount,
+  account: Account,
   p: Unsigned<SignedPauseCommand, "ownerSignature">,
 ): Promise<SignedPauseCommand> {
-  const ownerSignature = await account.signTypedData({
+  const ownerSignature = await typedSigner(account)({
     domain: BEKCI_DOMAIN,
     types: EIP712_TYPES,
     primaryType: "PauseCommand",
     message: pauseMessage(p),
   });
   return { ...p, ownerSignature };
+}
+
+/** Signs a ReadRequest (returns the signature only — the agent puts it in `agentSignature`). */
+export async function signAgentRead(account: Account, r: UnsignedRead): Promise<Hex> {
+  return typedSigner(account)({
+    domain: BEKCI_DOMAIN,
+    types: EIP712_TYPES,
+    primaryType: "AgentRead",
+    message: agentReadMessage(r),
+  });
 }
 
 // ---------- recovery / verification ----------
@@ -194,6 +231,16 @@ export function recoverPauseSigner(p: SignedPauseCommand): Promise<Hex> {
     primaryType: "PauseCommand",
     message: pauseMessage(p),
     signature: p.ownerSignature,
+  });
+}
+
+export function recoverAgentReadSigner(r: UnsignedRead & { agentSignature: Hex }): Promise<Hex> {
+  return recoverTypedDataAddress({
+    domain: BEKCI_DOMAIN,
+    types: EIP712_TYPES,
+    primaryType: "AgentRead",
+    message: agentReadMessage(r),
+    signature: r.agentSignature,
   });
 }
 

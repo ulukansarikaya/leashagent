@@ -1,0 +1,8 @@
+{
+  "name": "@bekci/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@bekci/shared": "*", "@bekci/llm": "*", "viem": "^2.21.0" }
+}

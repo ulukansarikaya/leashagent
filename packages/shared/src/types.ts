@@ -437,6 +437,11 @@ export interface AttestationVerifier {
   isAuthorizedSigner(address: Hex): Promise<boolean>;
 }
 
+// ---------- 10 Auditor ----------
+export interface Auditor {
+  decide(i: AuditorInput, o: { timeoutMs: number }): Promise<AuditorOutput>;
+}
+
 // ---------- 15.1 Chain-facing interfaces ----------
 export interface PolicyChainClient {
   getPolicy(policyId: Hex): Promise<PolicyRecord>;

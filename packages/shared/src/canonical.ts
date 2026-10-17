@@ -53,3 +53,6 @@ export function hashCanonical(value: unknown): Hex {
 export function keccakUtf8(s: string): Hex {
   return keccak256(stringToBytes(s));
 }
+
+/** Alias of keccakUtf8 (used by agent/ingest). */
+export const hashText = keccakUtf8;

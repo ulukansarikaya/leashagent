@@ -37,3 +37,27 @@ export const ReasonCodes = {
 } as const;
 
 export type KnownReasonCode = (typeof ReasonCodes)[keyof typeof ReasonCodes];
+
+/** Short names used by agent/dashboard/mock-gateway code — same values as ReasonCodes. */
+export const Reason = {
+  IDENTITY: ReasonCodes.IDENTITY,
+  SCHEMA: ReasonCodes.SCHEMA_OR_TOOL,
+  INSUFFICIENT_AUTH: ReasonCodes.INSUFFICIENT_AUTHORIZATION,
+  POLICY_UNVERIFIED: ReasonCodes.POLICY_UNVERIFIED,
+  NO_CREDIT: ReasonCodes.PAYMENT_REQUIRED,
+  PAUSED: ReasonCodes.PAUSED,
+  INSTRUMENT: ReasonCodes.INSTRUMENT,
+  TOOL: ReasonCodes.TOOL,
+  SINGLE_ORDER: ReasonCodes.SINGLE_ORDER_LIMIT,
+  OPEN_NOTIONAL: ReasonCodes.OPEN_NOTIONAL,
+  RATE: ReasonCodes.RATE,
+  DAILY_LOSS: ReasonCodes.DAILY_LOSS,
+  PRICE_DEVIATION: ReasonCodes.PRICE_DEVIATION,
+  STALE_DATA: ReasonCodes.STALE_DATA,
+  AUDITOR_INJECTION: ReasonCodes.AUDITOR_INJECTION,
+  AUDITOR_INCONSISTENT: ReasonCodes.AUDITOR_INCONSISTENT,
+  AUDITOR_BLOCK: ReasonCodes.AUDITOR_BLOCK,
+  AUDITOR_ASK_HUMAN: ReasonCodes.HUMAN_AUDITOR_ASK,
+  AUDITOR_UNAVAILABLE: ReasonCodes.HUMAN_AUDITOR_UNAVAILABLE,
+  ABOVE_THRESHOLD: ReasonCodes.HUMAN_ABOVE_THRESHOLD,
+} as const;
