@@ -7,7 +7,7 @@ import { CreditReconciler } from "./credit-reconciler";
 import { openGatewayDb, type Db } from "./db";
 import { ExecutionDispatcher, ExecutionEventHandler } from "./execution";
 import { DefaultIntentGate } from "./intent-gate";
-import { ChainOutbox } from "./outbox";
+import { ChainQueue, chainWriteAuditor, type ChainEvidenceWorker, type ChainWorkerEvent } from "./outbox";
 import { PauseGateway } from "./pause";
 import { DefaultPolicyEngine } from "./policy-engine";
 import { PolicyLoader } from "./policy-loader";
@@ -57,6 +57,12 @@ export type GatewayDeps = {
   /** Executor-side read-only reconciliation, when the executor is reachable from here. */
   reconcileExecutor?: () => Promise<unknown>;
   ingest?: IngestService;
+  /**
+   * Chain evidence sender over this gateway's `chain_outbox` table — Person 3's
+   * `new ChainOutbox(db, decisionLogPort, { onEvent })` from @bekci/chain fits. Omitted: evidence is
+   * still queued durably, and /v1/health reports chain "disabled".
+   */
+  chainEvidence?: (db: Db, onEvent: (e: ChainWorkerEvent) => void) => ChainEvidenceWorker;
   clock?: Clock;
 };
 
@@ -68,7 +74,11 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps) {
   const db: Db = openGatewayDb(config.dbPath ?? ":memory:");
   const store = new GatewayStore(db);
   const audit = new AuditLog(db);
-  const outbox = new ChainOutbox(db, clock);
+  const outbox = new ChainQueue(db, clock, audit);
+  const chainWorker = deps.chainEvidence?.(
+    db,
+    chainWriteAuditor(audit, clock, (requestId) => store.findRequest(requestId)?.policyId),
+  );
   const queue = new SerialQueue();
   const loader = new PolicyLoader({ store, chain: deps.chain, docs: deps.docs, clock, cacheTtlSec: config.policyCacheTtlSec });
   const risk = new DefaultRiskStore({ db, store, risk: deps.risk, clock });
@@ -112,13 +122,15 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps) {
   }
 
   let timer: ReturnType<typeof setInterval> | undefined;
-  function startJobs(intervalMs: number) {
+  function startJobs(intervalMs: number, chainIntervalMs = 2_000) {
     stopJobs();
     timer = setInterval(() => void tick().catch(() => undefined), intervalMs);
+    chainWorker?.start(chainIntervalMs);
   }
   function stopJobs() {
     if (timer) clearInterval(timer);
     timer = undefined;
+    chainWorker?.stop();
   }
 
   function close() {
@@ -128,7 +140,7 @@ export function createGateway(config: GatewayConfig, deps: GatewayDeps) {
   }
 
   return {
-    config, clock, db, store, audit, outbox, loader, risk, authorizer, gate, engine, approvals, pause,
+    config, clock, db, store, audit, outbox, chainWorker, loader, risk, authorizer, gate, engine, approvals, pause,
     executionEvents, dispatcher, credits, ingest: deps.ingest,
     registerPolicy, tick, startJobs, stopJobs, close,
   };

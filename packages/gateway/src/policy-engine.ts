@@ -24,7 +24,7 @@ import { SELL_INVENTORY_REASON } from "./limits";
 import type { AuditLog } from "./audit";
 import type { Authorizer } from "./authorizer";
 import { tx } from "./db";
-import type { ChainOutbox } from "./outbox";
+import type { ChainQueue } from "./outbox";
 import type { LoadedPolicy, PolicyLoader } from "./policy-loader";
 import type { Auditor, Clock, MarketDataProvider, OrderOwnershipVerifier, PaymentEntitlement } from "./ports";
 import type { DefaultRiskStore } from "./risk-store";
@@ -55,7 +55,7 @@ export type PolicyEngineDeps = {
   auditor: Auditor;
   auditorTimeoutMs: number;
   authorizer: Authorizer;
-  outbox: ChainOutbox;
+  outbox: ChainQueue;
   clock: Clock;
   queue: SerialQueue;
 };

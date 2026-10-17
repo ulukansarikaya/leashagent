@@ -1,7 +1,7 @@
 import { ReasonCodes, type ExecStatus, type ExecutionEvent, type Hex, type OrderStatus, type ReasonCode, type UUID } from "@bekci/shared";
 import type { AuditLog } from "./audit";
 import { tx } from "./db";
-import type { ChainOutbox } from "./outbox";
+import type { ChainQueue } from "./outbox";
 import type { DecisionOutcome } from "./policy-engine";
 import type { Clock, ExecutorPort } from "./ports";
 import type { DefaultRiskStore } from "./risk-store";
@@ -22,7 +22,7 @@ const STATUS: Record<ExecStatus, OrderStatus> = {
 export type ExecutionHandlerDeps = {
   store: GatewayStore;
   audit: AuditLog;
-  outbox: ChainOutbox;
+  outbox: ChainQueue;
   risk: DefaultRiskStore;
   clock: Clock;
 };
@@ -74,9 +74,10 @@ export class ExecutionEventHandler {
       const payload: Record<string, unknown> = { eventSeq: e.eventSeq, status: e.status, okxResultHash: e.okxResultHash };
       if (e.okxCode) payload.okxCode = e.okxCode;
       this.d.audit.appendSync({ ts: now, policyId, requestId: e.requestId, type: "execution", payload });
-      this.d.outbox.enqueueSync({
-        kind: "execution", requestId: e.requestId, eventSeq: e.eventSeq, status: e.status, okxResultHash: e.okxResultHash,
-      });
+      this.d.outbox.enqueueSync(
+        { kind: "execution", requestId: e.requestId, eventSeq: e.eventSeq, status: e.status, okxResultHash: e.okxResultHash },
+        policyId,
+      );
     });
   }
 

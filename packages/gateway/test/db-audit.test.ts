@@ -7,7 +7,7 @@ describe("gateway db", () => {
   it("migrations are idempotent across reopen", () => {
     const db = openGatewayDb(":memory:");
     const v = db.prepare("SELECT MAX(version) AS v FROM schema_version").get() as { v: number };
-    expect(v.v).toBe(5);
+    expect(v.v).toBe(6);
   });
 
   it("executor-owned tables are not in the gateway store", () => {

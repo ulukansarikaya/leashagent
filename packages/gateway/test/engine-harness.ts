@@ -15,7 +15,7 @@ import {
 import {
   ApprovalHandler,
   AuditLog,
-  ChainOutbox,
+  ChainQueue,
   DefaultIntentGate,
   DefaultPolicyEngine,
   DefaultRiskStore,
@@ -38,7 +38,7 @@ export async function harness(overrides: Partial<Policy> = {}, opts: { credits?:
   const db = openGatewayDb(":memory:");
   const store = new GatewayStore(db);
   const audit = new AuditLog(db);
-  const outbox = new ChainOutbox(db, clock);
+  const outbox = new ChainQueue(db, clock);
 
   const agent = new MockAgent();
   const owner = privateKeyToAccount(generatePrivateKey());

@@ -191,6 +191,8 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
         signer: app.authorizer.signerAddress,
         chainOutboxPending: outboxPending,
       },
+      // shared HealthChainStatus (dashboard contract)
+      chain: app.chainWorker ? { outbox: app.chainWorker.stats() } : "disabled",
     });
   }
 

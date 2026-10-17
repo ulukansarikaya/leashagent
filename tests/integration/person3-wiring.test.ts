@@ -1,9 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { ReasonCodes } from "@bekci/shared";
+import { ReasonCodes, chainWritePayloadSchema, healthChainSchema } from "@bekci/shared";
 import { limitBuy } from "@bekci/mocks";
 import { CreditStore } from "@bekci/payments";
-import { createChainPolicyStateProvider } from "@bekci/chain";
+import { ChainOutbox, createChainPolicyStateProvider, type DecisionLogPort } from "@bekci/chain";
 import type { PaymentEntitlement } from "@bekci/gateway";
 import type { PolicyStateProvider } from "@bekci/executor";
 import { appHarness, type AppHarness } from "../support/app-harness";
@@ -83,5 +83,47 @@ describe("executor ⇄ @bekci/chain createChainPolicyStateProvider", () => {
     const r = await h.intent(limitBuy());
     expect(r.body).toMatchObject({ status: "REVOKED", reasonCode: ReasonCodes.AUTH_POLICY_VERSION_CHANGED });
     expect(h.atk.writes.length).toBe(0);
+  });
+});
+
+describe("gateway chain_outbox ⇄ @bekci/chain ChainOutbox worker (dashboard contract)", () => {
+  const sent: string[] = [];
+  const port: DecisionLogPort = {
+    isApplied: async () => false,
+    simulate: async () => {},
+    send: async (r) => { sent.push(r.kind); return `0x${"ab".repeat(32)}`; },
+    waitForReceipt: async () => "success",
+  } as DecisionLogPort;
+
+  it("health reports \"disabled\" without a worker", async () => {
+    h = await appHarness();
+    const body = (await h.get("/v1/health")).body;
+    expect(body.chain).toBe("disabled");
+    expect(healthChainSchema.safeParse(body.chain).success).toBe(true);
+  });
+
+  it("decision + execution records go pending -> confirmed through Person 3's worker; payloads match ChainWritePayload", async () => {
+    h = await appHarness({}, { chainEvidence: (db, onEvent) => new ChainOutbox(db, port, { onEvent }) });
+    const r = await h.intent(limitBuy());
+    expect(r.body.status).toBe("ACKNOWLEDGED");
+    h.app.chainWorker!.start(5);
+    await new Promise((res) => setTimeout(res, 150));
+    h.app.chainWorker!.stop();
+
+    expect(sent).toEqual(["decision", "execution", "execution"]);
+    const health = (await h.get("/v1/health")).body;
+    expect(healthChainSchema.safeParse(health.chain).success).toBe(true);
+    expect(health.chain).toMatchObject({ outbox: { pending: 0, confirmed: 3, dead: 0 } });
+
+    const writes = h.app.audit.all().filter((e) => e.type === "chain_write");
+    for (const e of writes) {
+      const p = chainWritePayloadSchema.parse(e.payload);
+      expect(e.requestId).toBe(r.req.requestId);
+      expect(p.kind).toBeDefined();
+      expect(e.policyId).toBe(h.base.policyId);
+    }
+    expect(writes.map((e) => (e.payload as { state: string }).state)).toEqual(["pending", "pending", "pending", "confirmed", "confirmed", "confirmed"]);
+    expect(writes.filter((e) => (e.payload as { state: string }).state === "confirmed").every((e) => (e.payload as { txHash?: string }).txHash)).toBe(true);
+    expect(h.app.audit.verify()).toBeNull();
   });
 });

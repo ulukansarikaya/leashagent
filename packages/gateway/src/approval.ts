@@ -11,7 +11,7 @@ import {
 } from "@bekci/shared";
 import type { AuditLog } from "./audit";
 import { tx } from "./db";
-import type { ChainOutbox } from "./outbox";
+import type { ChainQueue } from "./outbox";
 import { outcomeToResponse, type DefaultPolicyEngine } from "./policy-engine";
 import type { PolicyLoader } from "./policy-loader";
 import type { Clock } from "./ports";
@@ -26,7 +26,7 @@ export type ApprovalHandlerDeps = {
   store: GatewayStore;
   audit: AuditLog;
   loader: PolicyLoader;
-  outbox: ChainOutbox;
+  outbox: ChainQueue;
   clock: Clock;
 };
 

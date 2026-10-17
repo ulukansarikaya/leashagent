@@ -22,7 +22,7 @@ import {
   mockPolicy,
 } from "@bekci/mocks";
 import { DefaultExecutor, openExecutorDb } from "@bekci/executor";
-import { createGateway, createGatewayServer, type PaymentEntitlement } from "@bekci/gateway";
+import { createGateway, createGatewayServer, type GatewayDeps, type PaymentEntitlement } from "@bekci/gateway";
 import { createChainPolicyStateProvider } from "@bekci/chain";
 
 const nonce16 = () => bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
@@ -33,7 +33,7 @@ const nonce16 = () => bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
  */
 export async function appHarness(
   policyOverrides: Partial<Policy> = {},
-  opts: { credits?: number; payment?: PaymentEntitlement } = {},
+  opts: { credits?: number; payment?: PaymentEntitlement; chainEvidence?: GatewayDeps["chainEvidence"] } = {},
 ) {
   let now = Math.floor(Date.now() / 1000);
   const clock = () => now;
@@ -87,6 +87,7 @@ export async function appHarness(
         },
       },
       executionLookup: executor,
+      ...(opts.chainEvidence ? { chainEvidence: opts.chainEvidence } : {}),
       reconcileExecutor: async () => {
         for (const e of await executor.reconcile()) {
           const row = app.store.findRequest(e.requestId);

@@ -6,9 +6,16 @@
  *
  * Real: L3/L4/L5/L7 gateway, L6 executor (own DB), HeuristicAuditor (@bekci/auditor),
  *       DefaultIngestService + HeuristicReaderModel (@bekci/ingest).
+ *       Chain evidence: Person 3's ChainOutbox worker (@bekci/chain) on the gateway's chain_outbox.
  * Mocked (TEST/DEMO ONLY): PolicyRegistry chain + policy document, OKX account/market data,
  *       x402 credits, and the exchange itself (FakeAtkClient — nothing reaches OKX).
+ *       DecisionLog writes go to an in-memory port unless DEV_REAL_CHAIN=1 (then Fuji, with
+ *       CHAIN_RPC_URL / DECISION_LOG_ADDRESS / LOGGER_PRIVATE_KEY — real transactions).
  */
+import { randomBytes } from "node:crypto";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { avalancheFuji } from "viem/chains";
+import { ChainOutbox, createDecisionLogPort, type DecisionLogPort } from "@bekci/chain";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { Hex, ReadRecord } from "@bekci/shared";
 import {
@@ -75,6 +82,28 @@ const executor = new DefaultExecutor({
   clock,
 });
 
+function decisionLogPort(): DecisionLogPort {
+  if (process.env.DEV_REAL_CHAIN === "1") {
+    const need = (k: string) => { const v = process.env[k]; if (!v) throw new Error(`DEV_REAL_CHAIN=1 needs ${k}`); return v; };
+    const transport = http(need("CHAIN_RPC_URL"));
+    const account = privateKeyToAccount(need("LOGGER_PRIVATE_KEY") as Hex);
+    return createDecisionLogPort({
+      publicClient: createPublicClient({ chain: avalancheFuji, transport }) as never,
+      walletClient: createWalletClient({ chain: avalancheFuji, transport, account }),
+      account,
+      chain: avalancheFuji,
+      address: need("DECISION_LOG_ADDRESS") as Hex,
+    });
+  }
+  // In-memory DecisionLog: every record "confirms" with a random tx hash.
+  return {
+    isApplied: async () => false,
+    simulate: async () => {},
+    send: async () => `0x${randomBytes(32).toString("hex")}` as Hex,
+    waitForReceipt: async () => "success",
+  } as DecisionLogPort;
+}
+
 const app = createGateway(
   { dbPath: process.env.DEV_GATEWAY_DB, guardInstanceId: "dev-guard", policyCacheTtlSec: 30, auditorTimeoutMs: 2000, unknownGraceSec: 30 },
   {
@@ -88,6 +117,7 @@ const app = createGateway(
     auditor: new HeuristicAuditor(),
     executor,
     executionLookup: executor,
+    chainEvidence: (db, onEvent) => new ChainOutbox(db, decisionLogPort(), { onEvent }),
     reconcileExecutor: async () => {
       for (const e of await executor.reconcile()) {
         const row = app.store.findRequest(e.requestId);
@@ -113,7 +143,7 @@ app.ingest = new DefaultIngestService({
 
 const reg = await app.registerPolicy(policy.binding.policyId);
 if (!reg.ok) throw new Error(`policy failed to verify: ${reg.reason}`);
-app.startJobs(5_000);
+app.startJobs(5_000, 500);
 
 const server = createGatewayServer(app);
 server.listen(PORT, "127.0.0.1", () => {

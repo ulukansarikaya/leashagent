@@ -105,6 +105,15 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (policy_id, request_id)
   );
   `,
+  // 006 — Person 3's chain_outbox columns (@bekci/chain CHAIN_OUTBOX_DDL), so their worker can run
+  // on this table. Their DDL is CREATE IF NOT EXISTS and would not add columns to an existing table.
+  `
+  ALTER TABLE chain_outbox ADD COLUMN state TEXT NOT NULL DEFAULT 'pending'
+    CHECK (state IN ('pending','submitted','confirmed','dead'));
+  ALTER TABLE chain_outbox ADD COLUMN next_attempt_at INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE chain_outbox ADD COLUMN confirmed_at INTEGER;
+  CREATE INDEX IF NOT EXISTS chain_outbox_open ON chain_outbox(state, id);
+  `,
 ];
 
 /**
