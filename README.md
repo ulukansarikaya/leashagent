@@ -1,193 +1,380 @@
-# Leash Agent — a security leash for AI trading agents
+# Leash Agent
 
-> **AI agents should never hold exchange keys.** Leash Agent sits between an autonomous trading agent and an OKX
-> account: the agent only *proposes* signed order intents; Leash Agent checks them against the owner's on-chain policy,
-> executes only what is allowed with an order-bound authorization, and anchors every decision on **Avalanche**.
+**A security gateway that keeps AI trading agents on a leash.**
 
-**Claim:** on an account managed by Leash Agent, an order that violates the verified user policy and increases risk
-never reaches the exchange through Leash Agent — even if the agent's LLM is prompt-injected or fully compromised.
+Autonomous trading agents are easy to steer: a poisoned news article or a prompt injection is enough to make an LLM
+place an order its owner never wanted. Leash Agent separates *reasoning* from *authority*. The agent never holds an
+exchange key — it can only propose signed order intents. Leash Agent checks every intent against the owner's
+policy on Avalanche, executes only what is allowed through an isolated executor on OKX, and anchors every decision
+on-chain as evidence.
 
-### How it works
-```
-Agent (LLM + signal, NO exchange key) --EIP-712 signed intent-->  Leash Agent gateway
-   L3 identity · signature · replay · schema   ->  L4 deterministic rules + auditor LLM (can only tighten)
-   L5 atomic risk reservation · x402 credits    ->  single-use, order-bound authorization (30 s)
-   L6 isolated executor: re-checks policy on-chain, writes to OKX exactly once (Agent Trade Kit)
-   L7 hash-chained audit log -> durable outbox -> DecisionLog on Avalanche Fuji (~3 s)
-```
-
-### Live on Avalanche Fuji (source-verified)
-| | Address / proof |
-|---|---|
-| PolicyRegistry — owner's rules, delegation, emergency pause | [`0x9d0f…f68F`](https://testnet.snowtrace.io/address/0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F) |
-| DecisionLog — hash of every decision & execution event | [`0xdC10…0d96`](https://testnet.snowtrace.io/address/0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96) |
-| ERC-8004 identities (official registry) | Leash Agent **#266**, demo trading agent **#267** on [`0x8004…BD9e`](https://testnet.snowtrace.io/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
-| Example on-chain Allow decision + execution | [tx 0xf0fc…bd71](https://testnet.snowtrace.io/tx/0xf0fcd77d9f9c66779ef79819fae435df82750caaf8d8150e9ea2194bb290bd71) |
-| Measured finality (public RPC, median) | pause ~4.3 s · decision log ~3.1 s |
-
-### Why it matters
-| Judging area | What Leash Agent delivers |
-|---|---|
-| **Agentic design** | Autonomous loop: market observation → deterministic signal → LLM review → signed intent; reads news only through an isolated, tool-less summarizer |
-| **Technical execution** | 7-layer architecture, fail-closed everywhere, **380+ tests + 35 Solidity tests in CI**, prompt-injection & attack acceptance suite |
-| **Avalanche** | Policy + evidence contracts on C-Chain, fast finality for pause/evidence, **ERC-8004** discovery, **x402** payments on Fuji |
-| **OKX** | **OKX Agent Trade Kit**: keyless market data for the agent, read-only key for risk, trade key only inside the isolated executor (no withdraw permission); run against a real OKX account |
-| **Business model** | Agents buy security checks themselves via **x402** (1 payment → 5 checks). Payment buys service, never authority; protective cancels are always free |
-
-### Security guarantees (tested)
-- The agent process holds **no exchange key**; only the isolated executor can write to OKX.
-- The auditor LLM can **only block or escalate** — never turn a rule BLOCK into an ALLOW; unreachable ⇒ human review.
-- Authorizations are **single-use, bound to one normalized order**, account and policy version, valid 30 s.
-- **One request ⇒ at most one exchange write**; timeouts are reconciled, never blindly resent.
-- **x402 payment is not authorization**; ERC-8004 identity is not authorization.
-
-### Run it
-```bash
-npm install && npm test                 # full suite (needs Node >= 22.13, Foundry)
-npm run demo:attack -- --serve          # offline prompt-injection demo + dashboard
-npm run gateway:fuji                    # gateway on the live Fuji policy + DecisionLog (needs .env)
-npm run e2e:fuji                        # live: 402 -> x402 purchase -> allowed + blocked -> on-chain evidence
-```
-Public demo on a VPS (Docker + Caddy, Fuji testnet, faked or OKX demo exchange): [`docs/DEPLOY.md`](docs/DEPLOY.md)
-Architecture: [`SONPLAN.md`](SONPLAN.md) · Team handoffs: [`docs/`](docs/)
+> **Claim.** On an account managed by Leash Agent, an order that violates the verified owner policy and increases
+> risk does not reach the exchange through Leash Agent — even if the agent's LLM is prompt-injected or fully
+> compromised.
+>
+> *Conditions:* no other copy of the OKX trade key exists, all write paths go through the gateway, and the software
+> behaves as specified. See [Limitations](#limitations).
 
 ---
 
-# Leash Agent
+## Contents
 
-Mimari: `SONPLAN.md`. Bu repo üç kişinin kapsamını içerir: **Kişi 1** (L3–L6 gateway, executor, OKX/ATK adaptörü),
-**Kişi 2** (ingest, agent, auditor, dashboard, injection demo, acceptance suite) ve
-**Kişi 3** (dondurulmuş `shared`, Avalanche kontratları, zincir istemcisi/outbox, x402, ERC-8004).
-`packages/mock-gateway` hâlâ offline demo ve acceptance suite'in kendini doğrulaması için duruyor.
-Entegrasyon notları: [`docs/PERSON1_HANDOFF.md`](docs/PERSON1_HANDOFF.md), [`docs/PERSON3_HANDOFF.md`](docs/PERSON3_HANDOFF.md),
-OKX spike: [`docs/okx-atk-spike.md`](docs/okx-atk-spike.md). TEE roadmap'te.
+- [How it works](#how-it-works)
+- [Architecture](#architecture)
+- [Security model](#security-model)
+- [Live deployment (Avalanche Fuji)](#live-deployment-avalanche-fuji)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [HTTP API](#http-api)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Repository layout](#repository-layout)
+- [Roadmap](#roadmap)
+- [Limitations](#limitations)
 
-**Gereksinimler:** Node ≥ 22.13 (24 önerilir; `node:sqlite` kullanılıyor), npm, Foundry (`forge`, `anvil`).
+---
 
-## Paketler
+## How it works
 
-| Paket | Katman | İçerik |
-|---|---|---|
-| `packages/gateway` | L3–L5, L7 sunucu | `IntentGate` (kimlik/imza/replay/şema/normalizasyon, market-buy kilidi §25.6), `PolicyLoader` (INV-11), saf `RuleEngine`, `DefaultPolicyEngine` (§25.3 sırası), atomik `RiskStore`, `ApprovalHandler`, `PauseGateway`, `CreditReconciler`, hash zincirli audit log, §9 HTTP API + SSE, `createGateway`. |
-| `packages/executor` | L6 | Yetki doğrulama (7 adım), `executor_nonces`, `dispatching` WAL, belirsiz sonuçta asla yeniden göndermeme, salt-okunur reconcile, `isExecTransitionAllowed`. `OKX_TRADE_*` yalnızca burada. |
-| `packages/atk` | L6 adaptörü | `okx-trade-mcp` (MCP stdio, birincil) ve `okx` CLI taşımaları, fail-safe yazma sonucu sınıflandırıcı, `OkxAtkClient`, anahtarsız OKX public market data. |
-| `packages/mocks` | — | **SADECE TEST/DEMO.** Kişi 1 testleri için policy zinciri, risk/market, kredi, auditor, `FakeAtkClient`. |
-| `packages/shared` | — | **Dondurulmuş, tek ortak paket.** §5 tipleri, `canonicalJson`, `policyId`/`agentId`/`clOrdId`/hash yardımcıları, EIP-712 (AgentIntent, AgentRead, ExecutionAuthorization, ApprovalDecision, PauseCommand), strict zod şemaları, `dec`, reason kodları, yürütme geçiş tablosu. Tip yeniden tanımlanmaz; değişiklik üç kişinin onayıyla. |
-| `packages/chain` | C / L7 | `PolicyRegistry` + `DecisionLog` (Solidity, Foundry testleri), Fuji deploy scripti, `PolicyChainClient`, `verifyPolicyDocument` (INV-11), L6 için zincir tabanlı `PolicyStateProvider`, kalıcı `ChainOutbox`. |
-| `packages/payments` | §21.2 | x402: kalıcı kredi defteri (1 ödeme → 5 kredi, `paymentRef` tek sefer), `purchaseCredits` (`POST /v1/credits`), facilitator + mock adaptör. |
-| `packages/identity` | §21.3 | ERC-8004: Leash Agent/agent kayıt kartları, yayınlama + keşif. |
-| `packages/llm` | — | Araçsız, geçmişsiz tek-çağrı LLM istemcisi. |
-| `packages/ingest` | L1 | Fetcher (allowlist/timeout/boyut), sanitizer, reader model, talimat dedektörü, `ReadRecorder`, `DefaultIngestService`. Ham içerik L1'den çıkmaz. |
-| `packages/agent` | L2 | Anahtarsız piyasa gözlemcisi, SMA sinyali, LLM/kural reviewer, EIP-712 `IntentBuilder`, egress allowlist'li `LeashClient`. OKX anahtarı görürse ya da mock gateway'e bağlanırsa başlamaz. |
-| `packages/auditor` | L4 adaptörü | `GenericLlmAuditor`, `JevAuditor` (§19.4 doğrulanmadı), `HeuristicAuditor`. Timeout/şema dışı → `AuditorUnavailable` (→ `PENDING 302`). |
-| `packages/dashboard` | L7 UI | Yalnızca HTTP + SSE. `?policyId=0x…` ile açılır. Owner işlemleri cüzdanda EIP-712 ile imzalanır. |
-| `packages/mock-gateway` | — | **SADECE TEST/DEMO.** Offline demo, unit/integration test, injection demo ve acceptance suite'in kendini doğrulaması için. OKX'e yazmaz; hiçbir üretim paketi ona bağımlı değildir (testle zorlanır). |
+```mermaid
+sequenceDiagram
+    participant A as Trading agent (no exchange key)
+    participant G as Leash Agent gateway
+    participant C as Avalanche (PolicyRegistry, DecisionLog)
+    participant E as Isolated executor
+    participant X as OKX
 
-## Kimlik bağlama (§25.1)
-
-`policyId = keccak256(abi.encode(owner, accountRef, agentRegistry, agentRegistryId))`
-— `packages/shared/src/ids.ts` (`computePolicyId`, Solidity ile aynı test vektörü). Görev 2 başka bir formül üretmez; mock gateway de policy'yi
-bu formülden türetir ve tutarsız binding ile başlamaz. Yetki `agentAuthAddress` + EIP-712 delegasyonundan gelir;
-ERC-8004 kimliği tek başına yetki vermez. `agentId` biçimi dondu: `eip155:<chainId>:<checksumluRegistry>:<id>`
-(`formatAgentId`, `agentIdMatchesBinding`, `bindingIsConsistent`).
-
-## Çalıştırma
-
-```bash
-npm install
-npm test                         # tüm TS testleri: unit + acceptance (mock'a karşı) + zincir e2e (anvil varsa)
-npm run test:contracts           # Solidity testleri (forge)
-npm run demo:attack              # uçtan uca demo: ERC-8004 → x402 → injection → onay → zincir kanıtı
-npm run demo:attack -- --serve   # + dashboard
+    A->>G: EIP-712 signed order intent
+    G->>C: load policy, verify hash, delegation, pause
+    G->>G: deterministic rules → auditor (may only tighten) → risk reservation → credit
+    alt allowed
+        G->>E: single-use authorization bound to this exact order
+        E->>C: re-check policy version / pause / delegation
+        E->>X: place order exactly once (OKX Agent Trade Kit)
+    else blocked / needs human
+        G-->>A: BLOCKED (reason code) or PENDING (owner approval)
+    end
+    G-->>C: decision + execution hashes (asynchronous outbox)
 ```
 
-**Kişi 1 gateway'i (yerel, OKX'e yazmaz)** — gerçek gateway/executor + Kişi 2 auditor/ingest, zincir/OKX/kredi mock:
+1. **Agent proposes.** The agent observes the market (public data, no key), computes a deterministic signal, asks an
+   LLM reviewer whether to act, and signs an `OrderIntent` with its own key. External text reaches it only as a
+   bounded summary produced by an isolated, tool-less reader.
+2. **Gateway decides.** Leash Agent authenticates the agent, normalizes the order, derives risk fields itself (never
+   trusting the agent), applies the owner's on-chain policy, and optionally asks an independent auditor model —
+   which can only block or escalate, never approve.
+3. **Executor acts.** Only an order with a valid, single-use, order-bound authorization reaches OKX, and only once.
+4. **Evidence is anchored.** Every decision and execution event is hash-chained locally and written to Avalanche.
+5. **Owner stays in control.** Policy changes, human approvals and the emergency pause require the owner's wallet
+   signature; the dashboard shows every decision live.
 
-```bash
-npm run gateway:dev              # çıktıdaki export satırları acceptance suite için
-OKX_MODE=atk npm run gateway:fuji # Fuji + gerçek OKX (ATK) + x402 (env: docs/PERSON1_HANDOFF.md)
-npm run test:invariants          # INV-1…16 + §26.1 saldırı senaryoları (HTTP)
-npm run spike:atk -- --yes-place-demo-orders   # OKX demo hesabında P0 spike (docs/okx-atk-spike.md)
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph U[Untrusted]
+        SRC[News / web / social]
+        AG["L2 Agent<br/>signal + LLM reviewer<br/>own signing key, no exchange key"]
+    end
+    subgraph LA[Leash Agent trust boundary]
+        L1["L1 Ingest<br/>tool-less reader"]
+        L3["L3 Intent gateway<br/>identity · signature · replay · schema"]
+        L4["L4 Policy<br/>rules → auditor → decision"]
+        L5["L5 State & risk<br/>atomic reservation · rate · PnL"]
+        L7["L7 Evidence<br/>hash-chained log · SSE · dashboard"]
+        subgraph ISO[Separate credentials]
+            L6["L6 Executor<br/>OKX trade key only here"]
+        end
+    end
+    CH[("Avalanche C-Chain<br/>PolicyRegistry · DecisionLog<br/>ERC-8004 identity")]
+    OKX[(OKX)]
+    OWN([Owner wallet])
+
+    SRC --> L1 --> AG
+    AG -- signed intent --> L3 --> L4 <--> L5
+    L4 -- authorization --> L6 --> OKX
+    L4 & L6 --> L7 --> CH
+    OWN -- policy · pause · approval --> CH
+    OWN -- signed approval / pause --> L4
+    L4 -. verify policy .-> CH
+    L6 -. re-check policy .-> CH
 ```
 
-**Gerçek E2E demo** — agent ve dashboard Kişi 1'in gateway'ine bağlanır:
-
-```bash
-LEASH_URL=https://<gateway> AGENT_AUTH_KEY=0x… LEASH_POLICY_ID=0x… AGENT_ID=… npm run agent
-# dashboard: gateway'in sunduğu adreste ?policyId=0x…
-```
-
-İsteğe bağlı LLM'ler: `AGENT_LLM_API_KEY`, `READER_MODEL_API_KEY`, `AUDITOR_API_KEY` (+ `*_MODEL`);
-`AUDITOR_PROVIDER=jev|llm|heuristic` (`jev` için `JEV_ENDPOINT`).
-
-## Acceptance suite (`tests/acceptance`)
-
-Testler gateway ile yalnızca HTTP üzerinden konuşur; aynı suite mock'a ve gerçek gateway'e karşı çalışır:
-
-```bash
-LEASH_GATEWAY_URL=https://<gateway> LEASH_AGENT_KEY=0x… LEASH_OWNER_KEY=0x… \
-LEASH_POLICY_ID=0x… LEASH_AGENT_ID=… LEASH_TEST_ESCALATE_SZ=… npm run test:acceptance
-```
-
-Gerçek gateway'de OKX **demo** hesabına bid fiyatında küçük limit emirler gönderilir. İsteğe bağlı:
-`LEASH_TEST_INST`, `LEASH_TEST_PX`, `LEASH_TEST_SMALL_SZ`, `LEASH_TEST_OVERLIMIT_SZ`.
-
-| Senaryo | Beklenen |
+| Layer | Responsibility |
 |---|---|
-| policyId binding | `computePolicyId(policy.binding) == policyId` |
-| izinli emir / aynı requestId tekrar | yetkilendirilir, tam bir kez `authorization_issued` |
-| yanlış imzacı, intent/agentReason değişikliği, nonce replay, eski `issuedAt` | `REJECTED_AUTH` |
-| yasak araç, fazladan alan, market buy (§25.6) | `REJECTED_SCHEMA` |
-| tek emir limiti üstü geçerli limit emir | `BLOCKED 103` |
-| kredi yok (mock) | `REJECTED_PAYMENT 004` |
-| owner pause / owner olmayan pause | `BLOCKED 100` / reddedilir |
-| eşik üstü → onay; yanlış imzacı; red | `PENDING 303` → yetkilendirilir; `PENDING` kalır; `REJECTED_BY_HUMAN` |
-| bekleme sırasında pause / fiyat değişimi (mock) sonra onay | `BLOCKED 100` / `BLOCKED 107` |
-| enjeksiyon gerekçeli emir; zehirli kaynak (mock) | yürütmeye ulaşmaz / `BLOCKED 201` |
-| audit olay akışı | kırılmamış hash zinciri |
+| **L1 Ingest** | Fetches external content as untrusted, turns it into a fixed-schema summary with a tool-less model, flags embedded instructions, keeps a read record. Raw content never reaches the agent. |
+| **L2 Agent** | Autonomous loop: observe → signal → LLM review → signed intent. Holds no exchange credentials (refuses to start if any are present) and can only reach allow-listed hosts. |
+| **L3 Intent gateway** | Verifies agent identity and delegation, EIP-712 signature, timestamp window, single-use nonce, request idempotency, tool allowlist and strict schema; normalizes the order to lot/tick size. |
+| **L4 Policy** | Loads the owner policy and verifies its hash against the chain; derives `riskIncreasing` / notional itself; applies deterministic rules (instrument, tool, per-order and open-notional limits, rate, daily loss, price deviation, pause, data freshness); consults the auditor; signs the authorization. |
+| **L5 State & risk** | Persistent SQLite state, atomic risk reservation in one transaction, rate counter, daily PnL, reconciliation of uncertain orders. |
+| **L6 Executor** | Separate credentials. Verifies the authorization (signer, expiry, nonce, order hash, account, policy version), re-checks the policy on-chain, writes a write-ahead record, calls OKX exactly once, never blindly retries. |
+| **L7 Evidence** | Append-only, hash-chained audit log; durable outbox to `DecisionLog`; masked SSE stream for the dashboard. |
+| **Chain** | `PolicyRegistry` (policy hash, version, delegation, pause) and `DecisionLog` (decision and execution hashes) on Avalanche; ERC-8004 identities for discovery. |
 
-"(mock)" işaretli testler mock'un durum kontrolüne ihtiyaç duyar ve gerçek gateway'de atlanır.
-Gerçek auditor'ın kararına bağlı yerlerde kesin kod yerine "yürütmeye ulaşmaz" doğrulanır.
+**Decision order** for a risk-increasing order: authenticate → verify policy → fresh market/risk state → pause gate →
+reserve service credit → deterministic rules → auditor / human threshold → re-check state → atomic risk reservation →
+finalize credit once → issue one authorization → executor re-check → one exchange write → reconcile.
 
-## İnsan onayı (§4.4)
+The full specification — data types, state machine, reason codes, storage schema and invariants — is in
+[`SONPLAN.md`](SONPLAN.md).
 
-Onay yalnızca devam izni verir. `SignedApproval` → taze policy doğrulama → taze piyasa/risk durumu → türetilmiş alanlar
-→ deterministik kurallar → gerekiyorsa auditor → yeni risk rezervasyonu → kredi → yetki → executor → OKX → reconciliation.
-Eski snapshot/rezervasyon kullanılmaz; durum değiştiyse sonuç `BLOCKED`/`PENDING` olabilir. Onay yanıtı en fazla `ALLOWED`'dır;
-fill'ler executor'dan `execution` olayı olarak gelir. Mock risk rezervasyonunu atlar; kredi (`PaymentEntitlement`)
-§25.3 sırasıyla rezerve edilir, BLOCK/PENDING'de bırakılır, yalnızca yetki verilirse tüketilir.
-Tam davranış gerçek gateway'e karşı acceptance suite ile doğrulanır.
+---
 
-## Dashboard ↔ gateway sözleşmesi: zincir kanıtı
+## Security model
 
-Dashboard yalnızca §9 HTTP/SSE uç noktalarını okur. Zincir kanıtı için gateway'in (Kişi 1) uyması gereken şekil
-`packages/shared`'de tanımlıdır; ikisi de oradan import eder:
+**Guarantees** (each covered by tests, see [Testing](#testing)):
 
-| Nerede | Tip / şema (`@leashagent/shared`) | Şekil |
+- The agent process holds **no exchange key**; only the isolated executor can write to OKX.
+- Fields the agent could lie about (`riskIncreasing`, notional, balances, "protective") are **derived by the
+  gateway**, never taken from the agent.
+- Forbidden tools, unknown tools and extra fields are rejected before policy evaluation.
+- The auditor model can **only block or escalate** — it can never turn a rule `BLOCK` into an `ALLOW`. If it is
+  unreachable, the order waits for a human.
+- A `PENDING` order becomes executable only with the **owner's signature** and a full re-run of the rules on fresh
+  state; an approval never bypasses a changed limit, pause or price.
+- Authorizations are **single-use and bound** to one normalized order, account, policy version and gateway instance,
+  and expire quickly (30 s in the demo policy).
+- **One request ⇒ at most one exchange write.** Timeouts become `UNKNOWN` and are reconciled, never resent.
+- Risk reservation and limit check are **atomic**: parallel requests cannot exceed the open-notional limit.
+- A policy is valid only if its hash matches the on-chain record; missing or stale policy, risk or market data stops
+  risk-increasing orders (**fail-closed**).
+- The audit log is append-only and hash-chained; a broken chain is detected. A delayed chain write never changes
+  an execution decision.
+- **Payment is not authorization** (x402 buys service credits only) and **identity is not authorization**
+  (ERC-8004 is for discovery; authority comes from the owner's EIP-712 delegation).
+
+**Not claimed:** eliminating market losses, catching every attack, proving completeness of all decisions on-chain,
+or cryptographically verifying OKX fills.
+
+---
+
+## Live deployment (Avalanche Fuji)
+
+Contracts are deployed on the Avalanche Fuji testnet with verified source code.
+
+| Component | Address / proof |
+|---|---|
+| `PolicyRegistry` — owner policy, delegation, emergency pause | [`0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F`](https://testnet.snowtrace.io/address/0x9d0f1e30aF144074f4A8bE191fd5DB4F1F51f68F) |
+| `DecisionLog` — hashes of decisions and execution events | [`0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96`](https://testnet.snowtrace.io/address/0xdC10FdDF2B58aeB674EBE4899A2a5C3276070d96) |
+| ERC-8004 identities (official registry) | Leash Agent **#266**, demo trading agent **#267** on [`0x8004A818BFB912233c491871b3d84c89A494BD9e`](https://testnet.snowtrace.io/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
+| Example on-chain decision + execution | [`0xf0fc…bd71`](https://testnet.snowtrace.io/tx/0xf0fcd77d9f9c66779ef79819fae435df82750caaf8d8150e9ea2194bb290bd71) |
+| Measured finality (public RPC, median) | emergency pause ~4.3 s · decision log ~3.1 s |
+
+The gateway has also been run end to end against a real OKX account through the
+[OKX Agent Trade Kit](https://github.com/okx/agent-trade-kit), using limit orders.
+
+---
+
+## Getting started
+
+### Requirements
+
+- **Node.js ≥ 22.13** (24 recommended; the gateway uses the built-in `node:sqlite`)
+- **Foundry** (`forge`, `anvil`) for contract tests and the local-chain parts of the demo
+- For live runs: a funded Fuji key for the `DecisionLog` logger; optionally OKX **demo** API keys
+
+### Install and test
+
+```bash
+git clone https://github.com/ulukansarikaya/leashagent.git
+cd leashagent
+npm install
+npm test                 # all TypeScript tests (local-chain tests run when anvil is installed)
+npm run test:contracts   # Solidity tests
+```
+
+### Run the demo (offline)
+
+```bash
+npm run demo:attack              # end-to-end story in the terminal
+npm run demo:attack -- --serve   # same, and keep the dashboard running at http://127.0.0.1:8787
+```
+
+The demo needs no keys and moves no funds. With Foundry installed it starts a throwaway local chain with the real
+`DecisionLog` contract and an ERC-8004 registry. It walks through:
+
+1. **Discovery** — the agent finds Leash Agent through its ERC-8004 registration.
+2. **x402 credits** — an order without credit is rejected (`REJECTED_PAYMENT`); the agent pays and gets 5 credits;
+   a non-delegated payer and a replayed payment are refused.
+3. **Unprotected agent** — reading a poisoned article, the agent would send a 325,000 USDT order straight to the
+   exchange.
+4. **Protected agent** — the same article passes through the ingest layer; the agent only sees a flagged summary.
+5. **Compromised agent** — the attacker's valid, signed order is blocked by the owner's policy (`BLOCKED 103`,
+   per-order limit); an injection-steered order is blocked by the auditor; a non-allowed instrument is blocked.
+6. **Human approval** — an order above the approval threshold waits for the owner; approval re-runs all checks, and
+   a price move while waiting blocks it.
+7. **Evidence** — every decision and execution is written to `DecisionLog`.
+
+### Run against the Fuji deployment
+
+```bash
+cp .env.example .env     # fill in LOGGER_PRIVATE_KEY and DEPLOYER_ADDRESS
+npm run gateway:fuji     # gateway + executor + dashboard on the live Fuji policy (OKX faked by default)
+npm run e2e:fuji         # live flow: 402 → x402 purchase → allowed + blocked orders → on-chain evidence
+```
+
+Set `OKX_MODE=atk` with OKX demo keys to trade on an OKX demo account instead of the simulated exchange.
+
+### Run the agent
+
+```bash
+LEASH_URL=https://<gateway> AGENT_AUTH_KEY=0x… LEASH_POLICY_ID=0x… AGENT_ID=eip155:43113:0x…:<id> npm run agent
+```
+
+The agent uses a deterministic rule-based reviewer unless `AGENT_LLM_API_KEY` is set.
+
+---
+
+## Configuration
+
+Secrets are read from the environment (or `.env`, which is git-ignored) and never appear in events or logs.
+See [`.env.example`](.env.example).
+
+| Variable | Used by | Purpose |
 |---|---|---|
-| `GET /v1/health` → `chain` | `HealthChainStatus` / `healthChainSchema` | `{ outbox: { pending, submitted, confirmed, dead } }` (`ChainOutbox.stats()`) veya `"disabled"` |
-| `chain_write` audit olayı → `payload` | `ChainWritePayload` / `chainWritePayloadSchema` | `{ state: "pending" \| "confirmed" \| "dead" \| "retry", kind?, eventSeq?, txHash?, error?, attempts? }` |
+| `CHAIN_RPC_URL`, `CHAIN_ID` | gateway | Avalanche RPC (Fuji: 43113) |
+| `POLICY_REGISTRY_ADDRESS`, `DECISION_LOG_ADDRESS` | gateway | Contract addresses |
+| `LOGGER_PRIVATE_KEY` | gateway | Key allowed to write to `DecisionLog` |
+| `DEPLOYER_ADDRESS` / `X402_PAY_TO` | gateway | x402 payment recipient |
+| `X402_MODE` | gateway | `payai` for the PayAI facilitator; mock settlement otherwise |
+| `GUARD_SIGNING_KEY` | gateway | Authorization signing key (generated per start if unset) |
+| `OKX_MODE`, `OKX_PROFILE`, `OKX_SITE` | gateway, executor | `atk` for real OKX through the Agent Trade Kit; `demo` or `live` profile |
+| `OKX_READ_KEY/SECRET/PASSPHRASE` | gateway | Read-only OKX key (risk data, order ownership) |
+| `OKX_TRADE_KEY/SECRET/PASSPHRASE` | **executor only** | Trade key, no withdrawal permission |
+| `MARKET_BUY_ENABLED` | gateway | Market buys stay disabled until the OKX unit semantics are verified |
+| `AGENT_AUTH_KEY`, `LEASH_URL`, `LEASH_POLICY_ID`, `AGENT_ID` | agent | Agent signing key and gateway endpoint |
+| `AGENT_LLM_API_KEY` | agent | Optional LLM reviewer (Anthropic API); rule-based reviewer otherwise |
+| `READER_MODEL_API_KEY`, `AUDITOR_API_KEY`, `AUDITOR_PROVIDER`, `JEV_ENDPOINT` | simulated gateway | Model-backed reader and auditor (`llm`, `jev` or `heuristic`). The Fuji and local gateways currently use the rule-based reader and auditor — see [Roadmap](#roadmap). |
 
-Kurallar: `pending` kayıt kuyruğa eklenince, `confirmed`/`dead` `ChainOutbox` `onEvent`'ten gelir ve olayın `requestId`'si
-kaydın emridir; `retry` hangi kayıt olduğunu bilmez, `requestId`/`kind` taşımaz; `confirmed` her zaman `txHash` içerir.
-Örnek uygulama: `packages/mock-gateway/src/index.ts` (`toChain`, `chainEvent`). Acceptance suite iki şekli de gerçek
-gateway'e karşı doğrular. `REJECTED_PAYMENT` satırları `decision` olayındaki `reasonCode: 4`'ten türetilir.
+---
 
-## Demo (`scripts/injection-demo.ts`, §23)
+## HTTP API
 
-Anvil kuruluysa demo yerel bir zincir açar (chainId 43113), üzerine Kişi 3'ün `MockIdentityRegistry` (ERC-8004 yerine)
-ve gerçek `DecisionLog` kontratını deploy eder. Anvil yoksa 1. ve 7. adımlar atlanır, kalan adımlar çalışır.
-x402 `MockSettlement` ile yapılır: para hareket etmez, yalnızca demo içindir.
+| Method and path | Caller | Purpose |
+|---|---|---|
+| `POST /v1/intents` | agent | Submit a signed order intent → status and reason code |
+| `GET /v1/intents/:requestId` | agent, dashboard | Status, normalized order and decision summary |
+| `POST /v1/reads` | agent | Signed read request → bounded `ReadSummary` |
+| `POST /v1/credits` | agent | x402 purchase of service credits (`X-PAYMENT` header) |
+| `POST /v1/approvals` | dashboard (owner-signed) | Approve or reject a pending order |
+| `POST /v1/pause` | dashboard (owner-signed) | Emergency pause / resume |
+| `GET /v1/policy/:policyId` | dashboard | Policy, hash and on-chain verification status |
+| `GET /v1/events` | dashboard | Server-sent events: masked, hash-chained audit stream |
+| `GET /v1/health` | anyone | Component status and chain-evidence counters |
 
-1. **ERC-8004:** owner, agent kimliğini kaydeder (policy bu kimliğe bağlanır); Leash Agent kendi kartını yayınlar; agent
-   `discover("agent-security-gateway")` ile Leash Agent'ı ve uç noktasını bulur. Keşif yetki vermez (INV-20).
-2. **x402:** kredisiz emir `REJECTED_PAYMENT 004` → `POST /v1/credits` `402` (ödeme gereksinimleri) → delegasyonsuz
-   ödeyici `403 payer_not_delegated` → agent öder `200` (5 kredi) → aynı ödeme tekrar `409 duplicate_payment`.
-3. **Korumasız:** agent zehirli haberi ham okur → geçerli `5 BTC limit @65000` emri doğrudan borsaya gider.
-4. **Korumalı:** haber L1'den geçer; agent yalnızca bayraklı `ReadSummary` görür, dürüst reviewer geri çekilir.
-5. **Agent ele geçirilse bile — ana saldırı:** aynı geçerli, imzalı limit emir → **`BLOCKED 103`** (policy/risk).
-   Ek: enjeksiyon gerekçeli küçük emir `BLOCKED 201`, izinsiz enstrüman `BLOCKED 101`, market buy `REJECTED_SCHEMA`.
-   Engellenen emirler kredi harcamaz.
-6. **Meşru akış:** küçük emir `ALLOWED`; eşik üstü `PENDING 303` → owner onayı → `ALLOWED`; onay beklerken fiyat kayarsa → `BLOCKED 107`.
-7. **Zincir kanıtı:** her karar ve yürütme olayı `ChainOutbox` üzerinden `DecisionLog`'a yazılır; dashboard
-   kuyrukta / gönderildi / zincirde / başarısız sayılarını ve emir başına tx hash'ini gösterir.
+Every rejection carries a reason code: `000–099` identity, schema, policy or payment (`004` = no service credit);
+`100–199` deterministic rules; `200–299` auditor blocks; `300–399` routed to a human; `400–499` execution;
+`500–599` infrastructure.
+
+---
+
+## Testing
+
+```bash
+npm run typecheck          # TypeScript across all packages
+npm test                   # 380+ tests: unit, integration, invariants, attacks, acceptance
+npm run test:contracts     # 35 Solidity tests (Foundry)
+npm run test:invariants    # security invariants and attack scenarios over HTTP
+npm run test:acceptance    # gateway acceptance suite (simulated gateway by default)
+```
+
+The acceptance suite talks to the gateway only over HTTP, so the same tests run against the real gateway:
+
+```bash
+npm run gateway:dev        # local gateway + executor; prints the variables for the next command
+LEASH_GATEWAY_URL=… LEASH_AGENT_KEY=… LEASH_OWNER_KEY=… LEASH_POLICY_ID=… LEASH_AGENT_ID=… \
+LEASH_TEST_ESCALATE_SZ=… npm run test:acceptance
+```
+
+Covered scenarios include impersonation, intent and reason tampering, nonce replay, idempotent retries, forbidden
+tools, extra fields, stale timestamps, limit violations, missing credit, emergency pause, owner approval with fresh
+re-evaluation, prompt injection, the policy-identity binding and the audit hash chain. CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds and tests the contracts, checks that the generated
+ABI module is up to date, type-checks and runs the full test suite.
+
+---
+
+## Deployment
+
+A public demo (Fuji testnet, simulated or OKX demo exchange) runs on any Linux server with Docker:
+
+```bash
+cp .env.example .env && chmod 600 .env   # LOGGER_PRIVATE_KEY, DEPLOYER_ADDRESS, SITE_ADDRESS
+docker compose up -d --build             # gateway + dashboard behind Caddy (automatic HTTPS for a domain)
+```
+
+Step-by-step guide: [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+---
+
+## Repository layout
+
+```
+packages/
+  shared/        Types, canonical JSON, EIP-712 types and signing, policy/agent identity, schemas, decimals
+  ingest/        L1 — isolated reader for external content
+  agent/         L2 — trading agent loop and gateway client
+  gateway/       L3–L5, L7 — intent gate, policy engine, risk store, approvals, pause, audit log, HTTP + SSE
+  executor/      L6 — authorization verification, single write, reconciliation
+  atk/           OKX Agent Trade Kit adapter (MCP and CLI transports) and public market data
+  auditor/       Auditor adapters: LLM, Jev, rule-based
+  llm/           Minimal stateless LLM client
+  chain/         Solidity contracts (Foundry), policy client, durable chain outbox, deployments
+  payments/      x402: credit ledger, purchase flow, facilitator and mock settlement
+  identity/      ERC-8004 registration cards, publishing and discovery
+  dashboard/     Static web dashboard (HTTP + SSE only)
+  mocks/         Test doubles for chain, OKX, risk and payments (tests and local runs only)
+  mock-gateway/  Simulated gateway for the offline demo and tests (never used in production paths)
+scripts/         Demo, local/Fuji gateways, deployment and live verification scripts
+tests/           Acceptance, attack, invariant and integration suites
+deploy/          Reverse-proxy configuration
+docs/            Deployment guide and integration notes
+SONPLAN.md       Full architecture specification
+```
+
+---
+
+## Roadmap
+
+**Done**
+
+- [x] Seven-layer enforcement path with fail-closed defaults and a single, idempotent exchange write
+- [x] Owner policy, delegation and emergency pause on Avalanche; decision evidence in `DecisionLog`
+- [x] Isolated ingest, autonomous agent loop, auditor adapter and prompt-injection defenses
+- [x] x402 service credits and ERC-8004 identities on Fuji
+- [x] Live dashboard with owner-signed approvals and emergency pause
+- [x] End-to-end run against a real OKX account (limit orders)
+- [x] Docker deployment for a public demo
+
+**Next**
+
+- [ ] **Hosted public demo** — run the gateway and dashboard on a public URL and publish that endpoint in the ERC-8004 card
+- [ ] **Market orders** — verify OKX market-order size semantics on a demo account, then enable market buys
+- [ ] **Model-backed review** — run the agent reviewer, reader and auditor on a production LLM; integrate the Jev auditor
+- [ ] **Real x402 settlement** — paid settlement with Fuji USDC through the PayAI facilitator
+- [ ] **Operational hardening** — request rate limiting, monitoring and alerting, key rotation
+
+**Later**
+
+- [ ] **TEE Lite** — move the policy decision core and the authorization signer into an attested environment; the executor accepts only signers with a fresh, valid attestation
+- [ ] **Full TEE enforcement** — bring the OKX trade credential inside the attested boundary, with key rotation and revocation
+- [ ] **Horizontal scaling** — risk reservations across multiple workers
+- [ ] **Mainnet** — Avalanche C-Chain and live OKX accounts after an independent security review
+
+---
+
+## Limitations
+
+- A bad trade **within** the owner's limits can still pass: Leash Agent limits loss, it does not eliminate it.
+- The daily-loss limit is not an absolute ceiling (gaps, latency, slippage).
+- The auditor model can be wrong and can itself be manipulated; it is an extra signal, not a security boundary.
+- The gateway process and its signing key are trusted (until the TEE milestones).
+- Ownership of the OKX account by the owner wallet is operator configuration, not a cryptographic proof.
+- Risk reservations are atomic within a single worker.
+- Spot trading only; market buys are disabled until the exchange semantics are verified.
+
+---
+
+No license has been chosen yet; all rights are reserved by the authors until one is added.
