@@ -5,7 +5,7 @@
 Autonomous trading agents are easy to steer: a poisoned news article or a prompt injection is enough to make an LLM
 place an order its owner never wanted. Leash Agent separates *reasoning* from *authority*. The agent never holds an
 exchange key — it can only propose signed order intents. Leash Agent checks every intent against the owner's
-policy on Avalanche, executes only what is allowed through an isolated executor on OKX, and anchors every decision
+policy on Avalanche, executes only what is allowed through a dedicated executor on OKX, and anchors every decision
 on-chain as evidence.
 
 > **Claim.** On an account managed by Leash Agent, an order that violates the verified owner policy and increases
@@ -41,7 +41,7 @@ sequenceDiagram
     participant A as Trading agent (no exchange key)
     participant G as Leash Agent gateway
     participant C as Avalanche (PolicyRegistry, DecisionLog)
-    participant E as Isolated executor
+    participant E as Executor (own credentials)
     participant X as OKX
 
     A->>G: EIP-712 signed order intent
@@ -86,7 +86,7 @@ flowchart TB
         L3["L3 Intent gateway — identity · signature · replay · schema"]
         L4["L4 Policy — rules → auditor → decision"]
         L5["L5 State & risk — atomic reservation · rate · PnL"]
-        L6["L6 Executor — separate process, OKX trade key only here"]
+        L6["L6 Executor — own credentials and database, OKX trade key only here"]
         L7["L7 Evidence — hash-chained log · SSE · dashboard"]
     end
 
@@ -113,7 +113,7 @@ flowchart TB
 | **L3 Intent gateway** | Verifies agent identity and delegation, EIP-712 signature, timestamp window, single-use nonce, request idempotency, tool allowlist and strict schema; normalizes the order to lot/tick size. |
 | **L4 Policy** | Loads the owner policy and verifies its hash against the chain; derives `riskIncreasing` / notional itself; applies deterministic rules (instrument, tool, per-order and open-notional limits, rate, daily loss, price deviation, pause, data freshness); consults the auditor; signs the authorization. |
 | **L5 State & risk** | Persistent SQLite state, atomic risk reservation in one transaction, rate counter, daily PnL, reconciliation of uncertain orders. |
-| **L6 Executor** | Separate credentials. Verifies the authorization (signer, expiry, nonce, order hash, account, policy version), re-checks the policy on-chain, writes a write-ahead record, calls OKX exactly once, never blindly retries. |
+| **L6 Executor** | Own credentials and database; the OKX trade key is handed only to its Agent Trade Kit subprocess. Verifies the authorization (signer, expiry, nonce, order hash, account, policy version, and in TEE mode the signer's attestation), re-checks the policy on-chain, writes a write-ahead record, calls OKX exactly once, never blindly retries. Runs in-process in the bundled gateways; it can run on its own host and attest the gateway remotely. |
 | **L7 Evidence** | Append-only, hash-chained audit log; durable outbox to `DecisionLog`; masked SSE stream for the dashboard. |
 | **Chain** | `PolicyRegistry` (policy hash, version, delegation, pause) and `DecisionLog` (decision and execution hashes) on Avalanche; ERC-8004 identities for discovery. |
 
@@ -130,7 +130,8 @@ The full specification — data types, state machine, reason codes, storage sche
 
 **Guarantees** (each covered by tests, see [Testing](#testing)):
 
-- The agent process holds **no exchange key**; only the isolated executor can write to OKX.
+- The agent process holds **no exchange key**; only the executor can write to OKX, and the trade key is passed
+  only to the executor's Agent Trade Kit subprocess.
 - Fields the agent could lie about (`riskIncreasing`, notional, balances, "protective") are **derived by the
   gateway**, never taken from the agent.
 - Forbidden tools, unknown tools and extra fields are rejected before policy evaluation.
@@ -283,7 +284,7 @@ Every rejection carries a reason code: `000–099` identity, schema, policy or p
 
 ```bash
 npm run typecheck          # TypeScript across all packages
-npm test                   # ~400 tests: unit, integration, invariants, attacks, acceptance, TEE
+npm test                   # 400+ tests: unit, integration, invariants, attacks, acceptance, TEE
 npm run test:contracts     # 35 Solidity tests (Foundry)
 npm run test:invariants    # security invariants and attack scenarios over HTTP
 npm run test:acceptance    # gateway acceptance suite (simulated gateway by default)
@@ -299,9 +300,11 @@ LEASH_TEST_ESCALATE_SZ=… npm run test:acceptance
 
 Covered scenarios include impersonation, intent and reason tampering, nonce replay, idempotent retries, forbidden
 tools, extra fields, stale timestamps, limit violations, missing credit, emergency pause, owner approval with fresh
-re-evaluation, prompt injection, the policy-identity binding and the audit hash chain. CI
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds and tests the contracts, checks that the generated
-ABI module is up to date, type-checks and runs the full test suite.
+re-evaluation, prompt injection, the policy-identity binding, the audit hash chain and TEE attestation (INV-22,
+including a real Intel TDX quote verified offline). CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+builds and tests the contracts, checks that the generated ABI module is up to date, type-checks and runs the full
+test suite; [`image.yml`](.github/workflows/image.yml) publishes the gateway image to GitHub Container Registry on
+demand.
 
 ---
 
@@ -314,8 +317,12 @@ cp .env.example .env && chmod 600 .env   # LOGGER_PRIVATE_KEY, DEPLOYER_ADDRESS,
 docker compose up -d --build             # gateway + dashboard behind Caddy (automatic HTTPS for a domain)
 ```
 
-Step-by-step guide: [`docs/DEPLOY.md`](docs/DEPLOY.md). On an Intel TDX confidential VM (Phala Cloud):
-[`deploy/phala/`](deploy/phala/docker-compose.yml) and [`docs/TEE.md`](docs/TEE.md).
+Step-by-step guide: [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+**With a TEE (Intel TDX on Phala Cloud).** Publish the image (`image` workflow), pin its digest in
+[`deploy/phala/docker-compose.yml`](deploy/phala/docker-compose.yml), create a `tdx.small` CVM with that file and set
+the secrets as encrypted environment variables. The gateway then generates its signing key inside the TD and serves
+verifiable evidence at `/v1/attestation`. Full steps: [`docs/TEE.md`](docs/TEE.md).
 
 ---
 
@@ -340,8 +347,9 @@ packages/
   mock-gateway/  Simulated gateway for the offline demo and tests (never used in production paths)
 scripts/         Demo, local/Fuji gateways, deployment and live verification scripts
 tests/           Acceptance, attack, invariant and integration suites
-deploy/          Reverse-proxy configuration
-docs/            Deployment guide and integration notes
+deploy/          Caddy reverse-proxy config; Phala Cloud (Intel TDX) compose file
+docs/            Deployment guide, TEE design, OKX integration notes, team handoffs
+.github/         CI and image-publishing workflows
 SONPLAN.md       Full architecture specification
 ```
 
@@ -368,12 +376,14 @@ SONPLAN.md       Full architecture specification
 - [ ] **Market orders** — verify OKX market-order size semantics on a demo account, then enable market buys
 - [ ] **Model-backed review** — run the agent reviewer, reader and auditor on a production LLM; integrate the Jev auditor
 - [ ] **Real x402 settlement** — paid settlement with Fuji USDC through the PayAI facilitator
+- [ ] **TEE on hardware** — activate `TEE_MODE=tdx` on a Phala Cloud CVM; adapter, compose file and image
+      workflow are ready (`deploy/phala/`, [`docs/TEE.md`](docs/TEE.md))
 - [ ] **Operational hardening** — request rate limiting, monitoring and alerting, key rotation
 
 **Later**
 
-- [ ] **TEE on hardware** — run the gateway on a Phala Cloud TDX CVM (`deploy/phala/`), then move the executor to
-      its own host verifying the gateway remotely
+- [ ] **Separate executor host** — run the executor (with the OKX trade key) on its own machine, attesting the
+      gateway remotely before accepting any authorization
 - [ ] **Full TEE enforcement** — bring the OKX trade credential inside the attested boundary, with key rotation and revocation
 - [ ] **Horizontal scaling** — risk reservations across multiple workers
 - [ ] **Mainnet** — Avalanche C-Chain and live OKX accounts after an independent security review
