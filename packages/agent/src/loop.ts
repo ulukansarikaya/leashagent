@@ -1,5 +1,5 @@
 import type { IntentResponse, ReadSummary, Signal } from "@leashagent/shared";
-import type { LeashClient } from "./leashClient.js";
+import type { CreditPurchase, LeashClient, X402Mode } from "./leashClient.js";
 import type { IntentBuilder } from "./intentBuilder.js";
 import type { MarketObserver } from "./market.js";
 import type { Review, Reviewer } from "./reviewer.js";
@@ -11,6 +11,8 @@ export type AgentConfig = {
   orderSizeBase: string;
   readQueries: { source: "news" | "web" | "social"; query: string }[];
   signal?: SignalParams;
+  /** Buy service credits via x402 when the gateway answers REJECTED_PAYMENT (004). Off when unset. */
+  x402?: X402Mode;
 };
 
 export type TickResult = {
@@ -18,6 +20,8 @@ export type TickResult = {
   reads: ReadSummary[];
   review?: Review;
   response?: IntentResponse;
+  /** Set when the tick had to buy credits first. */
+  payment?: CreditPurchase;
 };
 
 /** Memory is off (§6.2): every tick starts from scratch. */
@@ -47,8 +51,14 @@ export class TradingAgent {
     });
     if (!review.proceed || !review.proposedIntent) return { signal, reads, review };
 
-    const req = await this.builder.build(review.proposedIntent, review.rationale, reads.map((r) => r.readId));
-    const response = await this.leash.submitIntent(req);
-    return { signal, reads, review, response };
+    const readIds = reads.map((r) => r.readId);
+    let response = await this.leash.submitIntent(await this.builder.build(review.proposedIntent, review.rationale, readIds));
+    if (response.status !== "REJECTED_PAYMENT" || !this.cfg.x402) return { signal, reads, review, response };
+
+    // No service credit (402 / reason 004): pay once, then send a NEW signed intent (a retry of the same
+    // requestId would only read back the rejected state).
+    const payment = await this.leash.buyCredits(this.builder.agentId, this.cfg.x402);
+    if (payment.ok) response = await this.leash.submitIntent(await this.builder.build(review.proposedIntent, review.rationale, readIds));
+    return { signal, reads, review, response, payment };
   }
 }

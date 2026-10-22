@@ -33,7 +33,7 @@ import {
 } from "@leashagent/gateway";
 import { activeDeployment } from "./deployment";
 import { McpStdioTransport, OkxAtkClient, OkxOrderOwnershipVerifier, OkxPublicMarketData, OkxRiskProvider } from "@leashagent/atk";
-import { HeuristicAuditor } from "@leashagent/auditor";
+import { gatewayAuditor } from "./auditor";
 import { setupTee } from "./tee";
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
 
@@ -59,6 +59,7 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
   const guard = privateKeyToAccount((process.env.GUARD_SIGNING_KEY as Hex | undefined) ?? generatePrivateKey());
   // TEE Lite: with TEE_MODE set, the executor only accepts this signer while its attestation is fresh (INV-22).
   const tee = await setupTee(guard.address, clock);
+  const auditor = gatewayAuditor();
   const logger = privateKeyToAccount(need("LOGGER_PRIVATE_KEY") as Hex);
 
   const dataDir = opts.dataDir ?? "data";
@@ -129,7 +130,7 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
       market: okx.market,
       ownership: okx.ownership,
       payment: credits,
-      auditor: new HeuristicAuditor(),
+      auditor: auditor.auditor,
       executor,
       executionLookup: executor,
       chainEvidence: (db, onEvent) =>
@@ -164,6 +165,7 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
 
   const server = createGatewayServer(app, {
     tee: tee.http,
+    auditor: auditor.label,
     credits: (q) => purchaseCredits({ store: credits, provider: settlement, delegations: delegationResolver(app.loader, clock) }, q),
     dashboardDir: join(dirname(fileURLToPath(import.meta.url)), "../../packages/dashboard/public"),
   });

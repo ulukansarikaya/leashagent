@@ -3,11 +3,13 @@ import { llmFromEnv } from "@leashagent/llm";
 import { LeashClient, guardedFetch } from "./leashClient.js";
 import { IntentBuilder } from "./intentBuilder.js";
 import { TradingAgent } from "./loop.js";
+import { DEFAULT_SIGNAL } from "./signal.js";
+import { exchangeCredentialsIn } from "./env.js";
 import { OkxPublicMarketObserver } from "./market.js";
 import { LlmReviewer, RuleReviewer } from "./reviewer.js";
 
-// INV-1: refuse to start if any OKX credential leaked into the agent environment.
-const leaked = Object.keys(process.env).filter((k) => /^OKX_(READ|TRADE)_/.test(k));
+// INV-1: refuse to start if any exchange credential leaked into the agent environment.
+const leaked = exchangeCredentialsIn(process.env);
 if (leaked.length) {
   console.error(`refusing to start: OKX credentials present in agent env (${leaked.join(", ")})`);
   process.exit(1);
@@ -35,6 +37,9 @@ const agent = new TradingAgent(
     mandate: process.env.AGENT_MANDATE ?? "Trade BTC-USDT spot trend-following with small limit orders.",
     orderSizeBase: process.env.AGENT_ORDER_SZ ?? "0.0001",
     readQueries: [{ source: "news", query: process.env.AGENT_NEWS_QUERY ?? "bitcoin" }],
+    // x402: buy service credits when the gateway answers 402 / reason 004 ("mock" moves no funds; "exact" pays USDC).
+    x402: process.env.AGENT_X402 === "mock" || process.env.AGENT_X402 === "exact" ? process.env.AGENT_X402 : undefined,
+    signal: { ...DEFAULT_SIGNAL, ...(process.env.AGENT_SIGNAL_MIN_SPREAD ? { minSpread: Number(process.env.AGENT_SIGNAL_MIN_SPREAD) } : {}) },
   },
   new OkxPublicMarketObserver(okxBase),
   llm ? new LlmReviewer(llm) : new RuleReviewer(),
@@ -47,7 +52,10 @@ console.log(`agent ${account.address} → ${leashUrl} every ${intervalSec}s (rev
 for (;;) {
   try {
     const r = await agent.tick();
-    console.log(JSON.stringify({ signal: r.signal.direction, reads: r.reads.length, review: r.review?.proceed, response: r.response }));
+    console.log(JSON.stringify({
+      signal: r.signal.direction, reads: r.reads.map((x) => x.flags).flat(), review: r.review?.proceed,
+      ...(r.payment ? { payment: r.payment.ok ? "credits bought" : r.payment } : {}), response: r.response,
+    }));
   } catch (e) {
     console.error("tick failed:", (e as Error).message);
   }

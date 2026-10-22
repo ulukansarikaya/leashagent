@@ -95,6 +95,8 @@ export type HttpOptions = {
    * so anyone can check which signer is attested. Omitted: health reports `tee: "disabled"`, route is 404.
    */
   tee?: { status(): unknown; evidence(): unknown; attest?(nonce: Hex): Promise<unknown> };
+  /** Which auditor is wired (shown in /v1/health → auditor), e.g. { provider: "heuristic", role: "fallback/demo auditor" }. */
+  auditor?: unknown;
 };
 
 const STATIC_TYPES: Record<string, string> = {
@@ -221,6 +223,7 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       // shared HealthChainStatus (dashboard contract)
       chain: app.chainWorker ? { outbox: app.chainWorker.stats() } : "disabled",
       tee: opts.tee ? opts.tee.status() : "disabled",
+      ...(opts.auditor ? { auditor: opts.auditor } : {}),
     });
   }
 

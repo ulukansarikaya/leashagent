@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@leashagent/shared": "*", "@leashagent/llm": "*", "viem": "^2.21.0" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@leashagent/shared": "*",
+    "@leashagent/llm": "*",
+    "viem": "^2.21.0",
+    "@leashagent/payments": "*"
+  }
 }

@@ -3,7 +3,7 @@ import type { Account } from "viem";
 import { signAgentIntent, type Hex, type OrderIntent, type SignedIntentRequest, type UUID } from "@leashagent/shared";
 
 export class IntentBuilder {
-  constructor(private account: Account, private policyId: Hex, private agentId: string) {}
+  constructor(private account: Account, readonly policyId: Hex, readonly agentId: string) {}
 
   async build(intent: OrderIntent, agentReason: string, referencedReadIds: UUID[]): Promise<SignedIntentRequest> {
     const unsigned = {
