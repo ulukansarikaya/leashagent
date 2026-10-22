@@ -73,33 +73,37 @@ sequenceDiagram
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph U[Untrusted]
-        SRC[News / web / social]
-        AG["L2 Agent<br/>signal + LLM reviewer<br/>own signing key, no exchange key"]
-    end
-    subgraph LA[Leash Agent trust boundary]
-        L1["L1 Ingest<br/>tool-less reader"]
-        L3["L3 Intent gateway<br/>identity · signature · replay · schema"]
-        L4["L4 Policy<br/>rules → auditor → decision"]
-        L5["L5 State & risk<br/>atomic reservation · rate · PnL"]
-        L7["L7 Evidence<br/>hash-chained log · SSE · dashboard"]
-        subgraph ISO[Separate credentials]
-            L6["L6 Executor<br/>OKX trade key only here"]
-        end
-    end
-    CH[("Avalanche C-Chain<br/>PolicyRegistry · DecisionLog<br/>ERC-8004 identity")]
-    OKX[(OKX)]
+flowchart TB
+    SRC[News / web / social] --> L1
     OWN([Owner wallet])
 
-    SRC --> L1 --> AG
-    AG -- signed intent --> L3 --> L4 <--> L5
-    L4 -- authorization --> L6 --> OKX
-    L4 & L6 --> L7 --> CH
-    OWN -- policy · pause · approval --> CH
+    subgraph U[Untrusted]
+        AG["L2 Agent — signal + LLM reviewer<br/>own signing key, no exchange key"]
+    end
+
+    subgraph LA[Leash Agent trust boundary]
+        L1["L1 Ingest — tool-less reader"]
+        L3["L3 Intent gateway — identity · signature · replay · schema"]
+        L4["L4 Policy — rules → auditor → decision"]
+        L5["L5 State & risk — atomic reservation · rate · PnL"]
+        L6["L6 Executor — separate process, OKX trade key only here"]
+        L7["L7 Evidence — hash-chained log · SSE · dashboard"]
+    end
+
+    CH[("Avalanche C-Chain<br/>PolicyRegistry · DecisionLog · ERC-8004")]
+    OKX[(OKX)]
+
+    L1 -- bounded summary --> AG
+    AG -- signed intent --> L3 --> L4
+    L4 <--> L5
+    L4 -- order-bound authorization --> L6 --> OKX
+    L4 --> L7
+    L6 --> L7
+    L7 -- decision & execution hashes --> CH
+    OWN -- policy · delegation · pause --> CH
     OWN -- signed approval / pause --> L4
-    L4 -. verify policy .-> CH
-    L6 -. re-check policy .-> CH
+    CH -. verified policy .-> L4
+    CH -. pre-send re-check .-> L6
 ```
 
 | Layer | Responsibility |
