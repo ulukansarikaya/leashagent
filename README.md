@@ -48,6 +48,7 @@ npm run demo:attack -- --serve          # offline prompt-injection demo + dashbo
 npm run gateway:fuji                    # gateway on the live Fuji policy + DecisionLog (needs .env)
 npm run e2e:fuji                        # live: 402 -> x402 purchase -> allowed + blocked -> on-chain evidence
 ```
+Public demo on a VPS (Docker + Caddy, Fuji testnet, faked or OKX demo exchange): [`docs/DEPLOY.md`](docs/DEPLOY.md)
 Architecture: [`SONPLAN.md`](SONPLAN.md) · Team handoffs: [`docs/`](docs/)
 
 ---

@@ -1,0 +1,14 @@
+{$SITE_ADDRESS}
+
+encode gzip
+
+# /v1/events is a long-lived SSE stream: flush immediately, never buffer.
+reverse_proxy gateway:8787 {
+	flush_interval -1
+}
+
+header {
+	X-Content-Type-Options nosniff
+	Referrer-Policy no-referrer
+	-Server
+}
