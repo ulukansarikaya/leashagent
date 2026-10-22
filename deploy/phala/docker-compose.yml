@@ -1,0 +1,26 @@
+# Leash Agent gateway on Phala Cloud (Intel TDX, dstack) — docs/TEE.md "Deploy on Phala Cloud".
+# The compose file is part of the measurement: pin the image by digest so the measured app is exactly
+# the reviewed build. Secrets are set as Phala encrypted environment variables, never written here.
+services:
+  gateway:
+    image: ghcr.io/ulukansarikaya/leashagent@sha256:REPLACE_WITH_IMAGE_DIGEST
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8787"
+      LEASH_DATA_DIR: /data
+      TEE_MODE: tdx
+      TEE_SERVICE_ID: leashagent-gateway
+      # Encrypted env (set in Phala Cloud): LOGGER_PRIVATE_KEY, DEPLOYER_ADDRESS, TEE_ALLOWED_MEASUREMENTS,
+      # optional OKX_MODE/OKX_* demo keys. Do NOT set GUARD_SIGNING_KEY: the signer is generated inside the TD.
+      LOGGER_PRIVATE_KEY: ${LOGGER_PRIVATE_KEY}
+      DEPLOYER_ADDRESS: ${DEPLOYER_ADDRESS}
+      TEE_ALLOWED_MEASUREMENTS: ${TEE_ALLOWED_MEASUREMENTS}
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+      - leash-data:/data
+    ports:
+      - "8787:8787"
+    restart: unless-stopped
+
+volumes:
+  leash-data:

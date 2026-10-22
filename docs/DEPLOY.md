@@ -49,8 +49,9 @@ sonra `docker compose up -d`. Fuji'deki demo policy'nin `accountRef`'i bu OKX he
 ## 4. TEE (isteğe bağlı)
 
 Sıradan bir VPS'te TEE donanımı yoktur. `.env`'de `TEE_MODE=simulated` ile attestation protokolü uçtan uca
-çalışır ve dashboard'da "simülasyon" olarak görünür, ama ek güvenlik sağlamaz. Gerçek TEE için confidential
-computing destekli bir sunucu ve donanım adaptörü gerekir: [`docs/TEE.md`](TEE.md).
+çalışır ve dashboard'da "simülasyon" olarak görünür, ama ek güvenlik sağlamaz. Gerçek TEE (Intel TDX) için
+Phala Cloud'da bir TDX makinesi kullanılır: `deploy/phala/docker-compose.yml` ve adımlar
+[`docs/TEE.md`](TEE.md) içinde ("Deploy on Phala Cloud").
 
 ## 5. Güncelleme / durdurma
 

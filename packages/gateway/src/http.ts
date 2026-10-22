@@ -94,7 +94,7 @@ export type HttpOptions = {
    * TEE Lite (§21.4): attestation status for /v1/health (`tee`) and the latest evidence at GET /v1/attestation,
    * so anyone can check which signer is attested. Omitted: health reports `tee: "disabled"`, route is 404.
    */
-  tee?: { status(): unknown; evidence(): unknown };
+  tee?: { status(): unknown; evidence(): unknown; attest?(nonce: Hex): Promise<unknown> };
 };
 
 const STATIC_TYPES: Record<string, string> = {
@@ -287,6 +287,18 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       if (m === "GET" && path === "/v1/events") return events(req, res, url);
       if (m === "GET" && path === "/v1/health") return health(res);
       if (m === "GET" && path === "/v1/attestation" && opts.tee) return send(res, 200, { status: opts.tee.status(), evidence: opts.tee.evidence() ?? null });
+      if (m === "POST" && path === "/v1/attestation" && opts.tee?.attest) {
+        // A remote verifier's challenge: answer with fresh evidence for this gateway's signer.
+        const body = (await readJson(req)) as { nonce?: unknown };
+        if (!body || typeof body.nonce !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(body.nonce) || Object.keys(body).length !== 1) {
+          return send(res, 400, { status: "ERROR", message: "expected { nonce: bytes32 }" } satisfies ErrorBody);
+        }
+        try {
+          return send(res, 200, await opts.tee.attest(body.nonce as Hex));
+        } catch {
+          return send(res, 503, { status: "ERROR", message: "attestation unavailable" } satisfies ErrorBody);
+        }
+      }
       if (m === "POST" && path === "/v1/reads") return await postRead(req, res);
       if (m === "POST" && path === "/v1/credits" && opts.credits) return await postCredits(req, res);
       if (m === "GET" && opts.dashboardDir && !path.startsWith("/v1/")) {
