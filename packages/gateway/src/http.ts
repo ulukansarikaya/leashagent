@@ -90,6 +90,11 @@ export type HttpOptions = {
   credits?: (q: { policyId: Hex; agentId: string; paymentHeader?: string }) => Promise<CreditPurchaseResult>;
   /** Serve the dashboard (packages/dashboard/public) for non-API GETs. */
   dashboardDir?: string;
+  /**
+   * TEE Lite (§21.4): attestation status for /v1/health (`tee`) and the latest evidence at GET /v1/attestation,
+   * so anyone can check which signer is attested. Omitted: health reports `tee: "disabled"`, route is 404.
+   */
+  tee?: { status(): unknown; evidence(): unknown };
 };
 
 const STATIC_TYPES: Record<string, string> = {
@@ -215,6 +220,7 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       },
       // shared HealthChainStatus (dashboard contract)
       chain: app.chainWorker ? { outbox: app.chainWorker.stats() } : "disabled",
+      tee: opts.tee ? opts.tee.status() : "disabled",
     });
   }
 
@@ -280,6 +286,7 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       if (m === "GET" && path.startsWith("/v1/policy/")) return await getPolicy(res, path.slice("/v1/policy/".length) as Hex);
       if (m === "GET" && path === "/v1/events") return events(req, res, url);
       if (m === "GET" && path === "/v1/health") return health(res);
+      if (m === "GET" && path === "/v1/attestation" && opts.tee) return send(res, 200, { status: opts.tee.status(), evidence: opts.tee.evidence() ?? null });
       if (m === "POST" && path === "/v1/reads") return await postRead(req, res);
       if (m === "POST" && path === "/v1/credits" && opts.credits) return await postCredits(req, res);
       if (m === "GET" && opts.dashboardDir && !path.startsWith("/v1/")) {

@@ -28,6 +28,14 @@ const nonce16 = () => "0x" + [...crypto.getRandomValues(new Uint8Array(16))].map
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const short = (h) => (h ? `${h.slice(0, 10)}…` : "");
 
+/** /v1/health → tee: "disabled" or { mode, accepted: [{ signer, expiresAt }], … } (TEE Lite, INV-22). */
+function teeLabel(tee) {
+  if (!tee || tee === "disabled") return "kapalı";
+  const live = (tee.accepted ?? []).find((a) => a.signer?.toLowerCase() === tee.signer?.toLowerCase());
+  const state = live ? `imzacı attested ✓ (${short(tee.signer)})` : "attestation yok ✗";
+  return tee.mode === "simulated" ? `simülasyon — ${state} (donanım yok)` : `${tee.mode} — ${state}`;
+}
+
 async function loadPolicy() {
   const health = await fetch("/v1/health").then((r) => r.json());
   paused = health.paused;
@@ -50,6 +58,7 @@ async function loadPolicy() {
     ["görev", policy.mandate], ["enstrümanlar", policy.allowedInstruments.join(", ")],
     ["tek emir max", `${limit("maxOrderNotionalUsdt")} USDT`], ["onay eşiği", `${limit("escalateAboveUsdt")} USDT`],
     ["auditor", auditorOn ? "açık" : "kapalı"], ["policyHash", short(p.policyHash)], ["zincir", chain],
+    ["TEE", teeLabel(health.tee)],
   ];
   $("policyBody").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
   renderPaused();

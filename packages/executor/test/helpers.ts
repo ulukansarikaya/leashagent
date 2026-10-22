@@ -13,7 +13,7 @@ import {
 import { BTC_USDT, FakeAtkClient, MockPolicyChain, limitBuy, mockPolicy } from "@leashagent/mocks";
 import { DefaultExecutor, openExecutorDb } from "../src";
 
-export function setup(opts: { path?: string } = {}) {
+export function setup(opts: { path?: string; attestation?: import("@leashagent/shared").AttestationVerifier } = {}) {
   let now = Math.floor(Date.now() / 1000);
   const clock = () => now;
   const db = openExecutorDb(opts.path ?? ":memory:");
@@ -33,6 +33,7 @@ export function setup(opts: { path?: string } = {}) {
   const executor = new DefaultExecutor({
     db, atk, policyState: chain, config, clock,
     sink: { onEvent: (e) => { sinkEvents.push(e); } },
+    attestation: opts.attestation,
   });
 
   async function authorize(

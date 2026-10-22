@@ -46,7 +46,13 @@ curl -s http://<alan-adı-veya-ip>/v1/health    # {"status":"ok", … "chain":{"
 sonra `docker compose up -d`. Fuji'deki demo policy'nin `accountRef`'i bu OKX hesabının olmalıdır
 (`scripts/fuji-demo-policy.ts`). Market alım, `docs/okx-atk-spike.md` S5 doğrulanana kadar kapalıdır.
 
-## 4. Güncelleme / durdurma
+## 4. TEE (isteğe bağlı)
+
+Sıradan bir VPS'te TEE donanımı yoktur. `.env`'de `TEE_MODE=simulated` ile attestation protokolü uçtan uca
+çalışır ve dashboard'da "simülasyon" olarak görünür, ama ek güvenlik sağlamaz. Gerçek TEE için confidential
+computing destekli bir sunucu ve donanım adaptörü gerekir: [`docs/TEE.md`](TEE.md).
+
+## 5. Güncelleme / durdurma
 
 ```bash
 git pull && docker compose up -d --build   # güncelle (veriler volume'da kalır)

@@ -34,6 +34,7 @@ import {
 import { activeDeployment } from "./deployment";
 import { McpStdioTransport, OkxAtkClient, OkxOrderOwnershipVerifier, OkxPublicMarketData, OkxRiskProvider } from "@leashagent/atk";
 import { HeuristicAuditor } from "@leashagent/auditor";
+import { setupTee } from "./tee";
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
 
 const need = (k: string) => {
@@ -56,6 +57,8 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
 
   // Gateway authorization key: ephemeral unless GUARD_SIGNING_KEY is set; the executor trusts exactly this address.
   const guard = privateKeyToAccount((process.env.GUARD_SIGNING_KEY as Hex | undefined) ?? generatePrivateKey());
+  // TEE Lite: with TEE_MODE set, the executor only accepts this signer while its attestation is fresh (INV-22).
+  const tee = await setupTee(guard.address, clock);
   const logger = privateKeyToAccount(need("LOGGER_PRIVATE_KEY") as Hex);
 
   const dataDir = opts.dataDir ?? "data";
@@ -98,6 +101,7 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
   const settlement = process.env.X402_MODE === "payai" ? new FacilitatorSettlement(PAYAI_FACILITATOR_URL, reqs) : new MockSettlement(reqs);
 
   const executor = new DefaultExecutor({
+    attestation: tee.verifier,
     db: openExecutorDb(okx.executorDb),
     atk: okx.atk,
     policyState: createChainPolicyStateProvider(chain),
@@ -159,11 +163,12 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
   if (!reg.ok) throw new Error(`Fuji policy failed to verify: ${reg.reason}`);
 
   const server = createGatewayServer(app, {
+    tee: tee.http,
     credits: (q) => purchaseCredits({ store: credits, provider: settlement, delegations: delegationResolver(app.loader, clock) }, q),
     dashboardDir: join(dirname(fileURLToPath(import.meta.url)), "../../packages/dashboard/public"),
   });
 
-  return {
+  return { tee,
     app, server, credits, executor, chain, publicClient, policyId, record, price, okxMode, closeOkx: okx.close,
     settlementMode: process.env.X402_MODE === "payai" ? "payai" : "mock",
   };

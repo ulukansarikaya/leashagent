@@ -32,6 +32,7 @@ import {
 import { DefaultExecutor, openExecutorDb } from "@leashagent/executor";
 import { createGateway, createGatewayServer } from "@leashagent/gateway";
 import { HeuristicAuditor } from "@leashagent/auditor";
+import { setupTee } from "./lib/tee";
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -69,7 +70,10 @@ const market = new MockMarketData(clock, [BTC_USDT]);
 market.quotes.set("BTC-USDT", { bid: PRICE, ask: PRICE, last: PRICE });
 const atk = new FakeAtkClient();
 
+// TEE Lite: TEE_MODE=simulated exercises the attestation protocol locally (INV-22); off by default.
+const tee = await setupTee(guard.address, clock);
 const executor = new DefaultExecutor({
+  attestation: tee.verifier,
   db: openExecutorDb(process.env.DEV_EXECUTOR_DB ?? ":memory:"),
   atk,
   policyState: createChainPolicyStateProvider(chain),
@@ -146,7 +150,7 @@ const reg = await app.registerPolicy(policy.binding.policyId);
 if (!reg.ok) throw new Error(`policy failed to verify: ${reg.reason}`);
 app.startJobs(5_000, 500);
 
-const server = createGatewayServer(app, { dashboardDir: fileURLToPath(new URL("../packages/dashboard/public", import.meta.url)) });
+const server = createGatewayServer(app, { tee: tee.http, dashboardDir: fileURLToPath(new URL("../packages/dashboard/public", import.meta.url)) });
 server.listen(PORT, "127.0.0.1", () => {
   const url = `http://127.0.0.1:${PORT}`;
   console.log(`Leash Agent dev gateway on ${url}  (FakeAtk — nothing reaches OKX)\n`);

@@ -7,6 +7,7 @@ import {
   isExecTransitionAllowed,
   normalizedOrderSchema,
   recoverAuthorizationSigner,
+  type AttestationVerifier,
   type ExecStatus,
   type ExecutionAuthorization,
   type ExecutionEvent,
@@ -49,6 +50,11 @@ export type ExecutorDeps = {
   config: ExecutorConfig;
   clock: Clock;
   sink?: ExecutionSink;
+  /**
+   * TEE mode (§21.4, INV-22): when set, the authorization signer must also hold a currently accepted,
+   * fresh attestation. Unset = TEE mode off; behavior is unchanged.
+   */
+  attestation?: AttestationVerifier;
 };
 
 const ATK_STATE: Record<AtkOrderState, ExecStatus> = {
@@ -78,6 +84,13 @@ function hashResponse(raw: unknown): Hex {
 export class DefaultExecutor implements Executor {
   constructor(private readonly d: ExecutorDeps) {}
 
+  /** INV-22: in TEE mode an authorization from a signer without an accepted fresh attestation is rejected. */
+  private async requireAttestedSigner(signer: Hex): Promise<void> {
+    if (!this.d.attestation) return;
+    const ok = await this.d.attestation.isAuthorizedSigner(signer).catch(() => false);
+    if (!ok) throw new ExecutionRejected(ReasonCodes.AUTH_INVALID, "invalid", "authorization signer has no accepted fresh attestation");
+  }
+
   async execute(authIn: ExecutionAuthorization, orderIn: NormalizedOrder): Promise<ExecutionEvent[]> {
     const cfg = this.d.config;
     const invalid = (code: ReasonCode, msg: string) => new ExecutionRejected(code, "invalid", msg);
@@ -95,6 +108,7 @@ export class DefaultExecutor implements Executor {
     if (!signer || signer.toLowerCase() !== cfg.guardSignerAddress.toLowerCase()) {
       throw invalid(ReasonCodes.AUTH_INVALID, "authorization signer not accepted");
     }
+    await this.requireAttestedSigner(signer);
 
     // 4. Bound to this executor's account, instance and tool set.
     if (auth.accountRef !== cfg.accountRef) throw invalid(ReasonCodes.AUTH_INVALID, "accountRef mismatch");
@@ -130,6 +144,8 @@ export class DefaultExecutor implements Executor {
     // Cancels never add exposure; L4 already required a verified own open order while paused.
     if (st.paused && order.tool !== "spot_cancel_order") throw revoked("policy paused");
     if (this.d.clock() > auth.expiresAt) throw new ExecutionRejected(ReasonCodes.AUTH_EXPIRED, "expired", "authorization expired");
+    // The attestation may have lapsed during the network recheck above.
+    await this.requireAttestedSigner(signer);
 
     // 6 + 7. Consume the nonce, assert no prior execution, and write the dispatching WAL record —
     // all in one transaction, before the OKX call. The body is synchronous, so concurrent callers

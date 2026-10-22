@@ -7,6 +7,7 @@ import { ReasonCodes, EIP712_DOMAIN, EIP712_TYPES, authorizationMessage, type Ex
 import { limitBuy } from "@leashagent/mocks";
 import { DefaultExecutor, ExecutionRejected, openExecutorDb } from "../src";
 import { setup } from "./helpers";
+import { AttestedSignerRegistry, SimulatedTee, attestOnce } from "@leashagent/attestation";
 
 async function rejects(p: Promise<unknown>, code: number, outcome?: string) {
   const err = await p.then(() => null, (e: unknown) => e);
@@ -299,5 +300,60 @@ describe("Executor — uncertain outcomes (INV-9)", () => {
     expect(rec.map((e) => e.status)).toEqual(["filled"]);
     expect(await t.executor.reconcile()).toEqual([]); // terminal, nothing more
     expect(t.atk.writes.length).toBe(1);
+  });
+});
+
+describe("Executor — TEE mode (INV-22)", () => {
+  function teeSetup() {
+    let now = Math.floor(Date.now() / 1000);
+    const clock = () => now;
+    const tee = new SimulatedTee({ label: "gateway-build" });
+    const registry = new AttestedSignerRegistry({
+      serviceId: "leashagent-gateway", allowedMeasurements: [tee.measurement], maxAgeSec: 60,
+      verifiers: { simulated: tee.verifier() }, clock,
+    });
+    const t = setup({ attestation: registry });
+    const attest = () => attestOnce(registry, tee.provider(t.guard.address, "leashagent-gateway", clock));
+    return { t, registry, attest, advance: (s: number) => { now += s; } };
+  }
+
+  it("signer with an accepted fresh attestation executes once", async () => {
+    const { t, attest } = teeSetup();
+    expect((await attest()).ok).toBe(true);
+    const { auth, order } = await t.authorize();
+    await t.executor.execute(auth, order);
+    expect(t.atk.writes.length).toBe(1);
+  });
+
+  it("401 when the signer has no accepted attestation — nothing reaches the exchange", async () => {
+    const { t } = teeSetup();
+    const { auth, order } = await t.authorize();
+    await rejects(t.executor.execute(auth, order), ReasonCodes.AUTH_INVALID, "invalid");
+    expect(t.atk.writes.length).toBe(0);
+  });
+
+  it("401 once the attestation has gone stale", async () => {
+    const { t, attest, advance } = teeSetup();
+    await attest();
+    advance(61);
+    const { auth, order } = await t.authorize();
+    await rejects(t.executor.execute(auth, order), ReasonCodes.AUTH_INVALID);
+    expect(t.atk.writes.length).toBe(0);
+  });
+
+  it("an attested environment cannot lend its attestation to another signing key", async () => {
+    const { t, attest } = teeSetup();
+    await attest();
+    const { auth, order } = await t.authorize(limitBuy(), {}, privateKeyToAccount(generatePrivateKey()));
+    await rejects(t.executor.execute(auth, order), ReasonCodes.AUTH_INVALID);
+    expect(t.atk.writes.length).toBe(0);
+  });
+
+  it("revoking the signer stops further execution", async () => {
+    const { t, registry, attest } = teeSetup();
+    await attest();
+    registry.revoke(t.guard.address);
+    const { auth, order } = await t.authorize();
+    await rejects(t.executor.execute(auth, order), ReasonCodes.AUTH_INVALID);
   });
 });

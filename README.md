@@ -148,6 +148,8 @@ The full specification — data types, state machine, reason codes, storage sche
   an execution decision.
 - **Payment is not authorization** (x402 buys service credits only) and **identity is not authorization**
   (ERC-8004 is for discovery; authority comes from the owner's EIP-712 delegation).
+- **TEE mode** (optional): the executor accepts an authorization only if its signer holds a fresh, accepted
+  attestation from an allow-listed build. See [TEE Lite](docs/TEE.md).
 
 **Not claimed:** eliminating market losses, catching every attack, proving completeness of all decisions on-chain,
 or cryptographically verifying OKX fills.
@@ -248,6 +250,7 @@ See [`.env.example`](.env.example).
 | `OKX_READ_KEY/SECRET/PASSPHRASE` | gateway | Read-only OKX key (risk data, order ownership) |
 | `OKX_TRADE_KEY/SECRET/PASSPHRASE` | **executor only** | Trade key, no withdrawal permission |
 | `MARKET_BUY_ENABLED` | gateway | Market buys stay disabled until the OKX unit semantics are verified |
+| `TEE_MODE`, `TEE_MAX_AGE_SEC`, `TEE_ALLOWED_MEASUREMENTS` | gateway, executor | TEE Lite: `off` (default) or `simulated` — see [`docs/TEE.md`](docs/TEE.md) |
 | `AGENT_AUTH_KEY`, `LEASH_URL`, `LEASH_POLICY_ID`, `AGENT_ID` | agent | Agent signing key and gateway endpoint |
 | `AGENT_LLM_API_KEY` | agent | Optional LLM reviewer (Anthropic API); rule-based reviewer otherwise |
 | `READER_MODEL_API_KEY`, `AUDITOR_API_KEY`, `AUDITOR_PROVIDER`, `JEV_ENDPOINT` | simulated gateway | Model-backed reader and auditor (`llm`, `jev` or `heuristic`). The Fuji and local gateways currently use the rule-based reader and auditor — see [Roadmap](#roadmap). |
@@ -266,7 +269,8 @@ See [`.env.example`](.env.example).
 | `POST /v1/pause` | dashboard (owner-signed) | Emergency pause / resume |
 | `GET /v1/policy/:policyId` | dashboard | Policy, hash and on-chain verification status |
 | `GET /v1/events` | dashboard | Server-sent events: masked, hash-chained audit stream |
-| `GET /v1/health` | anyone | Component status and chain-evidence counters |
+| `GET /v1/health` | anyone | Component status, chain-evidence counters and TEE state |
+| `GET /v1/attestation` | anyone | Latest attestation evidence for the authorization signer (TEE mode) |
 
 Every rejection carries a reason code: `000–099` identity, schema, policy or payment (`004` = no service credit);
 `100–199` deterministic rules; `200–299` auditor blocks; `300–399` routed to a human; `400–499` execution;
@@ -278,7 +282,7 @@ Every rejection carries a reason code: `000–099` identity, schema, policy or p
 
 ```bash
 npm run typecheck          # TypeScript across all packages
-npm test                   # 380+ tests: unit, integration, invariants, attacks, acceptance
+npm test                   # ~400 tests: unit, integration, invariants, attacks, acceptance, TEE
 npm run test:contracts     # 35 Solidity tests (Foundry)
 npm run test:invariants    # security invariants and attack scenarios over HTTP
 npm run test:acceptance    # gateway acceptance suite (simulated gateway by default)
@@ -324,6 +328,7 @@ packages/
   executor/      L6 — authorization verification, single write, reconciliation
   atk/           OKX Agent Trade Kit adapter (MCP and CLI transports) and public market data
   auditor/       Auditor adapters: LLM, Jev, rule-based
+  attestation/   TEE Lite: attested-signer verifier, platform ports, simulated platform
   llm/           Minimal stateless LLM client
   chain/         Solidity contracts (Foundry), policy client, durable chain outbox, deployments
   payments/      x402: credit ledger, purchase flow, facilitator and mock settlement
@@ -351,6 +356,8 @@ SONPLAN.md       Full architecture specification
 - [x] Live dashboard with owner-signed approvals and emergency pause
 - [x] End-to-end run against a real OKX account (limit orders)
 - [x] Docker deployment for a public demo
+- [x] **TEE Lite protocol** — attested authorization signer: challenge, quote verification, measurement allow-list,
+      signer binding, expiry, executor enforcement (INV-22); runs today on a simulated platform
 
 **Next**
 
@@ -362,7 +369,8 @@ SONPLAN.md       Full architecture specification
 
 **Later**
 
-- [ ] **TEE Lite** — move the policy decision core and the authorization signer into an attested environment; the executor accepts only signers with a fresh, valid attestation
+- [ ] **TEE hardware** — platform adapter (Intel TDX, AMD SEV-SNP or AWS Nitro) and deployment on a
+      confidential-computing instance, so the signing key is generated inside real hardware
 - [ ] **Full TEE enforcement** — bring the OKX trade credential inside the attested boundary, with key rotation and revocation
 - [ ] **Horizontal scaling** — risk reservations across multiple workers
 - [ ] **Mainnet** — Avalanche C-Chain and live OKX accounts after an independent security review
@@ -374,7 +382,8 @@ SONPLAN.md       Full architecture specification
 - A bad trade **within** the owner's limits can still pass: Leash Agent limits loss, it does not eliminate it.
 - The daily-loss limit is not an absolute ceiling (gaps, latency, slippage).
 - The auditor model can be wrong and can itself be manipulated; it is an extra signal, not a security boundary.
-- The gateway process and its signing key are trusted (until the TEE milestones).
+- The gateway process and its signing key are trusted until TEE mode runs on real hardware; the simulated
+  platform adds no security.
 - Ownership of the OKX account by the owner wallet is operator configuration, not a cryptographic proof.
 - Risk reservations are atomic within a single worker.
 - Spot trading only; market buys are disabled until the exchange semantics are verified.

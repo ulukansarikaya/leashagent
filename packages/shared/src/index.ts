@@ -10,3 +10,4 @@ export * from "./schemas.js";
 export * from "./execTransitions.js";
 export * from "./normalize.js";
 export { privateKeyToAccount } from "viem/accounts";
+export * from "./attestation.js";
