@@ -19,9 +19,12 @@ import type { Hex, Policy, ReadRecord } from "@leashagent/shared";
 import {
   FakeAtkClient, MockMarketData, MockOrderOwnership, MockPayment, MockPolicyChain, MockRiskProvider, BTC_USDT, mockPolicy,
 } from "@leashagent/mocks";
-import { DefaultExecutor, openExecutorDb } from "@leashagent/executor";
-import { createGateway, createGatewayServer, delegationResolver } from "@leashagent/gateway";
-import { OkxPublicMarketData } from "@leashagent/atk";
+import { DefaultExecutor, openExecutorDb, tradeAtkEnvFromProcess, type AtkClient } from "@leashagent/executor";
+import {
+  SqliteEquityBaseline, createGateway, createGatewayServer, delegationResolver, openGatewayDb, readAtkEnvFromProcess,
+} from "@leashagent/gateway";
+import { McpStdioTransport, OkxAtkClient, OkxOrderOwnershipVerifier, OkxPublicMarketData, OkxRiskProvider } from "@leashagent/atk";
+import type { NormalizedOrder } from "@leashagent/shared";
 import { CreditStore, FacilitatorSettlement, MockSettlement, PAYAI_FACILITATOR_URL, fujiUsdcRequirements, purchaseCredits } from "@leashagent/payments";
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
 import { gatewayAuditor } from "./auditor";
@@ -43,7 +46,34 @@ export type DevGatewayOptions = {
   limits?: Partial<Policy["limits"]>;
   /** DecisionLog port override (tests: simulate an RPC outage). Default: in-memory, or Fuji with DEV_REAL_CHAIN=1. */
   decisionLog?: DecisionLogPort;
+  /**
+   * "fake" (default): FakeAtkClient, nothing reaches OKX. "okx": the real ATK path to an OKX DEMO account
+   * (OKX_READ_* for risk data, OKX_TRADE_* only in the executor); refuses any profile other than demo.
+   */
+  exchange?: "fake" | "okx";
 };
+
+/**
+ * Wraps the executor's exchange client: counts every write that reached the exchange, and can make the next
+ * write look like a lost response (the order IS sent, the reply is dropped) to exercise UNKNOWN → reconcile.
+ */
+export class CountingAtk implements AtkClient {
+  readonly writes: { kind: "place" | "cancel"; clOrdId?: string; ordId?: string }[] = [];
+  loseNextReply = false;
+  constructor(readonly inner: AtkClient) {}
+  async placeSpotOrder(o: NormalizedOrder) {
+    const r = await this.inner.placeSpotOrder(o);
+    this.writes.push({ kind: "place", clOrdId: o.clOrdId, ordId: r.ok ? r.ordId : undefined });
+    if (this.loseNextReply) { this.loseNextReply = false; throw new Error("timeout: response lost after the order reached the exchange (simulated)"); }
+    return r;
+  }
+  async cancelSpotOrder(o: NormalizedOrder) {
+    const r = await this.inner.cancelSpotOrder(o);
+    this.writes.push({ kind: "cancel", clOrdId: o.cancel?.clOrdId, ordId: o.cancel?.ordId });
+    return r;
+  }
+  getOrderByClOrdId(instId: string, clOrdId: string) { return this.inner.getOrderByClOrdId(instId, clOrdId); }
+}
 
 export async function buildDevGateway(o: DevGatewayOptions = {}) {
   const clock = () => Math.floor(Date.now() / 1000);
@@ -77,8 +107,26 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
   const price = o.price ?? "60000";
   const mockMarket = new MockMarketData(clock, [BTC_USDT]);
   mockMarket.quotes.set("BTC-USDT", { bid: price, ask: price, last: price });
-  const market = o.market === "okx" ? new OkxPublicMarketData({ site: "global", demo: false }) : mockMarket;
-  const atk = new FakeAtkClient();
+  const gatewayDb = openGatewayDb(process.env.DEV_GATEWAY_DB ?? ":memory:");
+  let market: MockMarketData | OkxPublicMarketData = o.market === "okx" ? new OkxPublicMarketData({ site: "global", demo: false }) : mockMarket;
+  let risk: MockRiskProvider | OkxRiskProvider = new MockRiskProvider(clock, { baseBalances: { BTC: "1", USDT: "100000" } });
+  let ownership: MockOrderOwnership | OkxOrderOwnershipVerifier = new MockOrderOwnership(clock);
+  let exchange: AtkClient = new FakeAtkClient();
+  const transports: McpStdioTransport[] = [];
+  if (o.exchange === "okx") {
+    const profile = (process.env.OKX_PROFILE ?? "demo").trim();
+    if (profile !== "demo") throw new Error(`exchange "okx" in the dev gateway is for an OKX DEMO account only (OKX_PROFILE=${profile})`);
+    const readEnv = readAtkEnvFromProcess();
+    const readAtk = new McpStdioTransport({ env: readEnv, modules: ["account", "spot"], readOnly: true, callTimeoutMs: 20_000 });
+    const tradeAtk = new McpStdioTransport({ env: tradeAtkEnvFromProcess(), modules: ["spot"], readOnly: false, callTimeoutMs: 25_000 });
+    transports.push(readAtk, tradeAtk);
+    market = new OkxPublicMarketData({ site: readEnv.site, demo: readEnv.demo });
+    risk = new OkxRiskProvider(readAtk, { baseline: new SqliteEquityBaseline(gatewayDb) });
+    ownership = new OkxOrderOwnershipVerifier(readAtk);
+    exchange = new OkxAtkClient(tradeAtk);
+  }
+  // Every exchange write (fake or real) is counted here: the "OKX write counter" of demos and tests.
+  const atk = new CountingAtk(exchange);
 
   const tee = await setupTee(guard.address, clock);
   const executor = new DefaultExecutor({
@@ -107,14 +155,15 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
 
   const auditor = gatewayAuditor();
   const app = createGateway(
-    { dbPath: process.env.DEV_GATEWAY_DB, guardInstanceId: "dev-guard", policyCacheTtlSec: 30, auditorTimeoutMs: Number(process.env.AUDITOR_TIMEOUT_MS ?? 8000), unknownGraceSec: 30 },
+    { guardInstanceId: "dev-guard", policyCacheTtlSec: 30, auditorTimeoutMs: Number(process.env.AUDITOR_TIMEOUT_MS ?? 8000), unknownGraceSec: 30 },
     {
+      db: gatewayDb,
       signer: guard,
       chain,
       verifyPolicy: (id) => loadVerifiedPolicy(chain, id),
-      risk: new MockRiskProvider(clock, { baseBalances: { BTC: "1", USDT: "100000" } }),
+      risk,
       market,
-      ownership: new MockOrderOwnership(clock),
+      ownership,
       payment: credits ?? new MockPayment(100_000),
       auditor: auditor.auditor,
       executor: executorPort,
@@ -155,13 +204,16 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
   });
 
   return {
-    app, server, atk, chain, mockMarket, policy, agent, owner, agentKey, ownerKey, guard, credits, tee, clock,
+    app, server, atk, exchange, executor, chain, mockMarket, policy, agent, owner, agentKey, ownerKey, guard, credits, tee, clock,
     settlementMode: process.env.X402_MODE === "payai" ? "payai" : "mock",
     async listen(): Promise<string> {
       await new Promise<void>((r) => server.listen(o.port ?? 0, o.host ?? "127.0.0.1", r));
       return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     },
-    close() { tee.stop(); server.closeAllConnections?.(); server.close(); app.close(); },
+    close() {
+      tee.stop(); server.closeAllConnections?.(); server.close(); app.close();
+      for (const t of transports) void t.close().catch(() => {});
+    },
   };
 }
 

@@ -23,7 +23,10 @@
     "gateway:fuji": "tsx --env-file=.env scripts/fuji-gateway.ts",
     "e2e:fuji": "tsx --env-file=.env scripts/fuji-e2e.ts",
     "agent:live": "tsx scripts/agent-live.ts",
-    "demo:live": "tsx scripts/live-demo.ts"
+    "demo:live": "tsx scripts/live-demo.ts",
+    "e2e:okx-demo": "node --env-file-if-exists=.env --import tsx scripts/okx-demo-e2e.ts",
+    "e2e:x402": "node --env-file-if-exists=.env --import tsx scripts/x402-e2e.ts",
+    "gate": "node --env-file-if-exists=.env --import tsx scripts/gate.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

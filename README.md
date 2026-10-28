@@ -61,10 +61,11 @@ sequenceDiagram
    LLM reviewer whether to act, and signs an `OrderIntent` with its own key. External text reaches it only as a
    bounded summary produced by an isolated, tool-less reader.
 2. **Gateway decides.** Leash Agent authenticates the agent, normalizes the order, derives risk fields itself (never
-   trusting the agent), applies the owner's on-chain policy, and optionally asks an independent auditor model —
-   which can only block or escalate, never approve.
+   trusting the agent), applies the owner's on-chain policy, and asks an independent auditor (Jev or another model;
+   a rule-based fallback in local demos) — which can only block or escalate, never approve.
 3. **Executor acts.** Only an order with a valid, single-use, order-bound authorization reaches OKX, and only once.
-4. **Evidence is anchored.** Every decision and execution event is hash-chained locally and written to Avalanche.
+4. **Evidence is anchored.** Every decision and execution event is hash-chained locally and written to Avalanche —
+   evidence of what Leash Agent decided and what the executor reported, not proof of an exchange fill.
 5. **Owner stays in control.** Policy changes, human approvals and the emergency pause require the owner's wallet
    signature; the dashboard shows every decision live.
 
@@ -170,7 +171,8 @@ Contracts are deployed on the Avalanche Fuji testnet with verified source code.
 | Measured finality (public RPC, median) | emergency pause ~4.3 s · decision log ~3.1 s |
 
 The gateway has also been run end to end against a real OKX account through the
-[OKX Agent Trade Kit](https://github.com/okx/agent-trade-kit), using limit orders.
+[OKX Agent Trade Kit](https://github.com/okx/agent-trade-kit), using limit orders. What each claim rests on, and what
+we deliberately do not claim yet: [`docs/CLAIMS.md`](docs/CLAIMS.md).
 
 ---
 
@@ -214,6 +216,33 @@ The demo needs no keys and moves no funds. With Foundry installed it starts a th
    a price move while waiting blocks it.
 7. **Evidence** — every decision and execution is written to `DecisionLog`.
 
+### Live security demo (real gateway + executor)
+
+```bash
+npm run demo:live                    # the whole security story, with an OKX write counter per step
+npm run demo:live -- --serve --pace 4   # same, slowed down, with the dashboard open for a presentation
+```
+
+No credit → 402 · x402 purchase · normal trade → ALLOW · oversize signed trade → `BLOCK 103` · prompt-injected trade →
+auditor `BLOCK 201` · owner approval after a price move → `BLOCK 107` (approval is not a bypass) · on-chain pause while
+an authorization is in flight → `REVOKED` at the executor · replay / forged intent → `REJECTED_AUTH`. Every rejected
+step shows **0 exchange writes**.
+
+### Run the agent (one command)
+
+```bash
+npm run agent:live
+```
+
+Starts the real gateway and executor (live OKX public prices, x402 credits, simulated exchange) and the agent in its
+own process with an allow-listed environment — it never sees an exchange key. The agent reads news through the ingest
+layer, computes its signal, reviews it (Claude if `AGENT_LLM_API_KEY` is set), signs the intent, buys credits on 402
+and submits again. To point the agent at another gateway:
+
+```bash
+LEASH_URL=https://<gateway> AGENT_AUTH_KEY=0x… LEASH_POLICY_ID=0x… AGENT_ID=eip155:43113:0x…:<id> npm run agent
+```
+
 ### Run against the Fuji deployment
 
 ```bash
@@ -223,14 +252,6 @@ npm run e2e:fuji         # live flow: 402 → x402 purchase → allowed + blocke
 ```
 
 Set `OKX_MODE=atk` with OKX demo keys to trade on an OKX demo account instead of the simulated exchange.
-
-### Run the agent
-
-```bash
-LEASH_URL=https://<gateway> AGENT_AUTH_KEY=0x… LEASH_POLICY_ID=0x… AGENT_ID=eip155:43113:0x…:<id> npm run agent
-```
-
-The agent uses a deterministic rule-based reviewer unless `AGENT_LLM_API_KEY` is set.
 
 ---
 
@@ -283,11 +304,17 @@ Every rejection carries a reason code: `000–099` identity, schema, policy or p
 ## Testing
 
 ```bash
+npm run gate               # everything below + live checks; reports live checks without credentials as SKIPPED
 npm run typecheck          # TypeScript across all packages
 npm test                   # 400+ tests: unit, integration, invariants, attacks, acceptance, TEE
 npm run test:contracts     # 35 Solidity tests (Foundry)
 npm run test:invariants    # security invariants and attack scenarios over HTTP
 npm run test:acceptance    # gateway acceptance suite (simulated gateway by default)
+npm run e2e:okx-demo       # limit buy/sell, cancel, duplicate clOrdId, lost reply → UNKNOWN → reconcile
+                           #   (OKX_MODE=atk + demo keys for the real exchange; dry run otherwise)
+npm run e2e:x402           # 402 → pay → 5 credits → ALLOW uses one, BLOCK/PENDING none, replay mints nothing
+                           #   (X402_MODE=payai + a Fuji USDC wallet for real settlement; mock otherwise)
+npm run e2e:fuji           # live Fuji PolicyRegistry + DecisionLog (needs .env)
 ```
 
 The acceptance suite talks to the gateway only over HTTP, so the same tests run against the real gateway:
