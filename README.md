@@ -307,6 +307,7 @@ Every rejection carries a reason code: `000–099` identity, schema, policy or p
 
 ```bash
 npm run gate               # everything below + live checks; reports live checks without credentials as SKIPPED
+npm run gate -- --require-live   # final gate: a required live check (OKX demo, x402 PayAI, Jev, Fuji) that cannot run FAILS
 npm run typecheck          # TypeScript across all packages
 npm test                   # 400+ tests: unit, integration, invariants, attacks, acceptance, TEE
 npm run test:contracts     # 35 Solidity tests (Foundry)
@@ -317,7 +318,10 @@ npm run e2e:okx-demo       # limit buy/sell, cancel, duplicate clOrdId, lost rep
 npm run e2e:x402           # 402 → pay → 5 credits → ALLOW uses one, BLOCK/PENDING none, replay mints nothing
                            #   (X402_MODE=payai + a Fuji USDC wallet for real settlement; mock otherwise)
 npm run e2e:fuji           # live Fuji PolicyRegistry + DecisionLog (needs .env)
+npm run smoke:jev          # real Jev endpoint, directly and through the gateway (needs JEV_ENDPOINT)
 ```
+
+Phase 1 gate status and what closes each item: [`docs/PHASE1_STATUS.md`](docs/PHASE1_STATUS.md).
 
 The acceptance suite talks to the gateway only over HTTP, so the same tests run against the real gateway:
 

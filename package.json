@@ -26,7 +26,8 @@
     "demo:live": "tsx scripts/live-demo.ts",
     "e2e:okx-demo": "node --env-file-if-exists=.env --import tsx scripts/okx-demo-e2e.ts",
     "e2e:x402": "node --env-file-if-exists=.env --import tsx scripts/x402-e2e.ts",
-    "gate": "node --env-file-if-exists=.env --import tsx scripts/gate.ts"
+    "gate": "node --env-file-if-exists=.env --import tsx scripts/gate.ts",
+    "smoke:jev": "node --env-file-if-exists=.env --import tsx scripts/jev-smoke.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

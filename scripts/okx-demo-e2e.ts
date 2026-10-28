@@ -17,6 +17,8 @@ import { OkxPublicMarketData } from "@leashagent/atk";
 import { buildDevGateway } from "./lib/devGateway";
 
 const live = process.env.OKX_MODE === "atk";
+// Strict (final gate): a SELL that cannot run is a failure, not a note.
+const requireSell = process.env.OKX_E2E_REQUIRE_SELL === "1" || process.env.FINAL_GATE === "1";
 const SZ = process.env.OKX_E2E_SZ ?? "0.0001";
 const INST = "BTC-USDT";
 
@@ -96,7 +98,9 @@ if (/ACKNOWLEDGED|PARTIALLY_FILLED/.test(buyState)) {
 // 5. limit SELL → ACK → cancel
 const sell = await client.submitIntent(await builder.build(limit("sell", sellPx), "e2e: resting limit sell", []));
 if (sell.status === "REJECTED_POLICY" || sell.status === "BLOCKED") {
-  info(`limit SELL ${SZ} @ ${sellPx}`, `${sell.status} ${sell.reasonCode ?? ""} — no free base balance on the account (fund the demo account with BTC)`);
+  const why = `${sell.status} ${sell.reasonCode ?? ""} — no free base balance on the account (fund the demo account with BTC)`;
+  if (requireSell) ok(false, `limit SELL ${SZ} @ ${sellPx} (required)`, why);
+  else info(`limit SELL ${SZ} @ ${sellPx}`, `${why}; set OKX_E2E_REQUIRE_SELL=1 to fail on this`);
 } else {
   const ss = await until(sell.requestId, /ACKNOWLEDGED|FILLED|PARTIALLY_FILLED/);
   ok(/ACKNOWLEDGED|FILLED|PARTIALLY_FILLED/.test(ss), `limit SELL ${SZ} @ ${sellPx}`, ss);

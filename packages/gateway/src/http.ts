@@ -269,11 +269,17 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       return send(res, 400, { status: "REJECTED_SCHEMA", reasonCode: ReasonCodes.SCHEMA_OR_TOOL, message: "expected { policyId, agentId }" } satisfies ErrorBody);
     }
     const header = req.headers["x-payment"];
-    const r = await opts.credits!({
-      policyId: body.policyId.toLowerCase() as Hex,
-      agentId: body.agentId,
-      paymentHeader: typeof header === "string" && header.length <= 8192 ? header : undefined,
-    });
+    let r: CreditPurchaseResult;
+    try {
+      r = await opts.credits!({
+        policyId: body.policyId.toLowerCase() as Hex,
+        agentId: body.agentId,
+        paymentHeader: typeof header === "string" && header.length <= 8192 ? header : undefined,
+      });
+    } catch {
+      // Facilitator timeout / outage / malformed answer: nothing was minted and no authority exists. Say so cleanly.
+      return send(res, 502, { status: "ERROR", message: "payment_provider_unavailable" } satisfies ErrorBody);
+    }
     if (r.status === 402) {
       // x402 Payment Required response body.
       return send(res, 402, { x402Version: 1, error: r.error ?? "payment required", accepts: [r.paymentRequirements] });

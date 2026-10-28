@@ -25,7 +25,9 @@ import {
 } from "@leashagent/gateway";
 import { McpStdioTransport, OkxAtkClient, OkxOrderOwnershipVerifier, OkxPublicMarketData, OkxRiskProvider } from "@leashagent/atk";
 import type { NormalizedOrder } from "@leashagent/shared";
-import { CreditStore, FacilitatorSettlement, MockSettlement, PAYAI_FACILITATOR_URL, fujiUsdcRequirements, purchaseCredits } from "@leashagent/payments";
+import {
+  CreditStore, FacilitatorSettlement, MockSettlement, PAYAI_FACILITATOR_URL, fujiUsdcRequirements, purchaseCredits, type SettlementProvider,
+} from "@leashagent/payments";
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
 import { gatewayAuditor } from "./auditor";
 import { setupTee } from "./tee";
@@ -51,6 +53,10 @@ export type DevGatewayOptions = {
    * (OKX_READ_* for risk data, OKX_TRADE_* only in the executor); refuses any profile other than demo.
    */
   exchange?: "fake" | "okx";
+  /** x402 settlement override (tests: an unreliable facilitator). Default: MockSettlement, or PayAI with X402_MODE=payai. */
+  settlement?: SettlementProvider;
+  /** Auditor override (smoke tests wrap the real one); default from AUDITOR_PROVIDER (scripts/lib/auditor.ts). */
+  auditor?: ReturnType<typeof gatewayAuditor>;
 };
 
 /**
@@ -151,9 +157,13 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
   // x402: real credit ledger; MockSettlement moves no funds (X402_MODE=payai uses the PayAI facilitator on Fuji).
   const reqs = fujiUsdcRequirements({ payTo: owner.address, maxAmountRequired: "100000", resource: "/v1/credits" });
   const credits = o.credits === "x402" ? new CreditStore(new DatabaseSync(":memory:"), { challenge: () => reqs }) : undefined;
-  const settlement = process.env.X402_MODE === "payai" ? new FacilitatorSettlement(PAYAI_FACILITATOR_URL, reqs) : new MockSettlement(reqs);
+  const settlement = o.settlement ?? (process.env.X402_MODE === "payai" ? new FacilitatorSettlement(PAYAI_FACILITATOR_URL, reqs) : new MockSettlement(reqs));
 
-  const auditor = gatewayAuditor();
+  const auditor = o.auditor ?? gatewayAuditor();
+  // Mutable fixtures (tests flip them to simulate state changes).
+  const newsDocs = (o.news ?? [{ url: "https://news.example/btc", body: "Bitcoin trades sideways as ETF inflows stay steady; analysts expect low volatility." }])
+    .map((n) => ({ source: "news" as const, url: n.url, body: n.body }));
+  const unlimited = credits ? undefined : new MockPayment(100_000);
   const app = createGateway(
     { guardInstanceId: "dev-guard", policyCacheTtlSec: 30, auditorTimeoutMs: Number(process.env.AUDITOR_TIMEOUT_MS ?? 8000), unknownGraceSec: 30 },
     {
@@ -164,7 +174,7 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
       risk,
       market,
       ownership,
-      payment: credits ?? new MockPayment(100_000),
+      payment: credits ?? unlimited!,
       auditor: auditor.auditor,
       executor: executorPort,
       executionLookup: executor,
@@ -179,8 +189,7 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
     },
   );
   app.ingest = new DefaultIngestService({
-    source: new FixtureSource((o.news ?? [{ url: "https://news.example/btc", body: "Bitcoin trades sideways as ETF inflows stay steady; analysts expect low volatility." }])
-      .map((n) => ({ source: "news" as const, url: n.url, body: n.body }))),
+    source: new FixtureSource(newsDocs),
     reader: new HeuristicReaderModel(),
     recorder: {
       record: async (r: ReadRecord) => app.store.saveRead(r),
@@ -204,7 +213,7 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
   });
 
   return {
-    app, server, atk, exchange, executor, chain, mockMarket, policy, agent, owner, agentKey, ownerKey, guard, credits, tee, clock,
+    app, server, atk, exchange, executor, chain, mockMarket, newsDocs, unlimited, policy, agent, owner, agentKey, ownerKey, guard, credits, tee, clock,
     settlementMode: process.env.X402_MODE === "payai" ? "payai" : "mock",
     async listen(): Promise<string> {
       await new Promise<void>((r) => server.listen(o.port ?? 0, o.host ?? "127.0.0.1", r));

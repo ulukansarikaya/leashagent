@@ -36,6 +36,14 @@ jobs:
 
       - run: npm run typecheck
 
-      # Includes the §25.7 consistency test and the Anvil end-to-end tests (anvil comes with foundry-toolchain).
+      # Includes the §25.7 consistency test, invariants/attacks (exchange-write assertions), the live security demo
+      # and the Anvil end-to-end tests (anvil comes with foundry-toolchain).
       - name: Tests
         run: ANVIL_BIN="$(command -v anvil)" npm test
+
+      # Acceptance suite against the real gateway + executor code, with state controls: every test runs, none skipped.
+      - name: Acceptance vs real gateway
+        run: LEASH_ACCEPTANCE_TARGET=dev npx vitest run tests/acceptance
+
+      - name: Final attack regression (exchange-write counts)
+        run: npx vitest run tests/attacks tests/invariants
