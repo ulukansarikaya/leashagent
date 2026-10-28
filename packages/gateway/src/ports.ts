@@ -46,7 +46,7 @@ export interface RiskProvider {
   getAccountState(policyId: Hex): Promise<AccountState>;
 }
 
-// ---------- Person 3: chain / policy registry ----------
+// ---------- Chain / policy registry (@leashagent/chain) ----------
 
 /** PolicyRegistry read client (§15.1 PolicyChainClient). */
 export interface PolicyChainClient {
@@ -63,7 +63,7 @@ export interface DecisionChainWriter {
   enqueue(r: ChainRecord): Promise<void>;
 }
 
-// ---------- Person 3: x402 entitlement (§21.2) ----------
+// ---------- x402 entitlement (§21.2, @leashagent/payments) ----------
 export interface PaymentEntitlement {
   reserveCredit(policyId: Hex, agentId: string, payer: Hex, requestId: UUID): Promise<
     | { ok: true; creditReservationId: string }
@@ -72,7 +72,7 @@ export interface PaymentEntitlement {
   consumeReservedCredit(policyId: Hex, requestId: UUID): Promise<void>;
   releaseReservedCredit(policyId: Hex, requestId: UUID, reason: string): Promise<void>;
   /**
-   * PROPOSED extension (needs agreement with Person 3): refund a consumed credit whose
+   * Extension of the shared PaymentEntitlement: refund a consumed credit whose
    * authorization provably never reached execution (§4.4 step 11, §21.2 rule 6). Idempotent.
    */
   refundConsumedCredit?(policyId: Hex, requestId: UUID, reason?: string): Promise<void> | void;
@@ -83,7 +83,7 @@ export interface ExecutionLookup {
   hasExecutionAttempt(policyId: Hex, requestId: UUID): Promise<boolean>;
 }
 
-// ---------- Person 2: auditor (§10) ----------
+// ---------- Auditor (§10, @leashagent/auditor) ----------
 export interface Auditor {
   decide(input: AuditorInput, opts: { timeoutMs: number }): Promise<AuditorOutput>;
 }

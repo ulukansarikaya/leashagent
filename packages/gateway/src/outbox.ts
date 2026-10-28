@@ -15,7 +15,7 @@ const ZERO_POLICY = ("0x" + "00".repeat(32)) as Hex;
 /**
  * Gateway side of the durable chain queue (§6.7, INV-15). `enqueueSync` is a local insert into
  * `chain_outbox` that runs inside the decision's own transaction, so a decision and its evidence
- * record commit together. Sending is done by Person 3's `@leashagent/chain` ChainOutbox worker over the
+ * record commit together. Sending is done by the `@leashagent/chain` ChainOutbox worker over the
  * same table (see `chainEvidence` in createGateway). The decision path never waits on the chain.
  *
  * Each enqueue also appends a `chain_write` audit event with state `pending` (shared ChainWritePayload).
@@ -70,7 +70,7 @@ export type ChainWorkerEvent =
   | { type: "retry"; id: number; error: string; attempts: number }
   | { type: "dead"; id: number; error: string; record: ChainRecord };
 
-/** The worker that actually sends records (Person 3's ChainOutbox fits this shape). */
+/** The worker that actually sends records (@leashagent/chain's ChainOutbox fits this shape). */
 export type ChainEvidenceWorker = {
   stats(): ChainOutboxStats;
   start(intervalMs?: number): void;

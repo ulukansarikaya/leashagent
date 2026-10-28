@@ -1,7 +1,6 @@
 # OKX / ATK Integration — P0 Spike
 
 Status: **code ready, spike not yet run** (needs OKX demo API keys).
-Owner: Person 1 (Security Core + OKX Execution).
 
 ## 1. What was researched (October 2026)
 

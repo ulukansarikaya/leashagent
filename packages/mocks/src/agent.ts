@@ -3,7 +3,7 @@ import { bytesToHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { signAgentIntent, type Hex, type OrderIntent, type SignedIntentRequest } from "@leashagent/shared";
 
-/** Mock of Person 2's IntentBuilder: produces EIP-712 signed intent requests. */
+/** Mock of the agent's IntentBuilder: produces EIP-712 signed intent requests. */
 export class MockAgent {
   readonly account: PrivateKeyAccount;
 

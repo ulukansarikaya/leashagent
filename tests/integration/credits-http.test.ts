@@ -1,5 +1,5 @@
-// x402 end-to-end through the real gateway HTTP server: POST /v1/credits (Person 3's purchaseCredits + CreditStore)
-// → credits are spent by risk-increasing intents (Person 1's policy engine). Payment never grants authority (INV-17).
+// x402 end-to-end through the real gateway HTTP server: POST /v1/credits (purchaseCredits + CreditStore)
+// → credits are spent by risk-increasing intents (the policy engine). Payment never grants authority (INV-17).
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";

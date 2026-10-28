@@ -1,4 +1,4 @@
-// Shared DTOs — SONPLAN.md §5, §7, §21. Frozen: changes require agreement of all three owners
+// Shared DTOs — SONPLAN.md §5, §7, §21. Frozen: a change here is a cross-component change (SONPLAN.md §26)
 // and must update SONPLAN.md in the same PR (§25.7).
 
 // ---------- 5.1 Base ----------
@@ -428,7 +428,7 @@ export interface PaymentEntitlement {
   releaseReservedCredit(policyId: Hex, requestId: UUID, reason: string): Promise<void>;
   /**
    * Reconciliation only (§4.4 step 11, §21.2 rule 6): refund a consumed credit whose authorization provably never
-   * reached execution. Idempotent. Agreed with Person 1 (CreditReconciler).
+   * reached execution. Idempotent. Used by the gateway's CreditReconciler.
    */
   refundConsumedCredit?(policyId: Hex, requestId: UUID, reason?: string): Promise<void> | void;
 }
@@ -458,9 +458,9 @@ export interface DecisionChainWriter {
 }
 
 // ---------- Chain evidence status: gateway → dashboard (§6.7, §9 GET /v1/health) ----------
-// Additive contract agreed with Person 1 (gateway) for Person 2 (dashboard).
+// Contract between the gateway and the dashboard.
 
-/** `ChainOutbox` row states (Person 3's outbox); same keys as `@leashagent/chain` OutboxStats. */
+/** `ChainOutbox` row states; same keys as `@leashagent/chain` OutboxStats. */
 export const CHAIN_OUTBOX_STATES = ["pending", "submitted", "confirmed", "dead"] as const;
 export type ChainOutboxState = (typeof CHAIN_OUTBOX_STATES)[number];
 export type ChainOutboxStats = Record<ChainOutboxState, number>;

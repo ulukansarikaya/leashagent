@@ -54,7 +54,7 @@ export function mockPolicy(
   };
 }
 
-/** What the PolicyRegistry would report for this policy (mock of Person 3's chain client). */
+/** What the PolicyRegistry would report for this policy (mock of the chain client). */
 export function mockChainRecord(p: Policy) {
   return {
     policyHash: hashCanonical(p),

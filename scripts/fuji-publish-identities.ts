@@ -12,7 +12,7 @@ import {
 } from "@leashagent/identity";
 
 const MANIFEST = new URL("../packages/chain/deployments/fuji.json", import.meta.url);
-// Placeholder until Person 1's gateway is hosted.
+// Placeholder until the gateway is hosted.
 const GATEWAY_BASE_URL = process.env.LEASH_PUBLIC_URL ?? "https://leashagent.invalid";
 const REPO = "https://github.com/ulukansarikaya/leashagent";
 

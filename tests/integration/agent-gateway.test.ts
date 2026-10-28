@@ -4,7 +4,7 @@ import { FixtureMarketObserver, IntentBuilder, LeashClient, RuleReviewer, Tradin
 import { DefaultIngestService, FixtureSource, HeuristicReaderModel } from "@leashagent/ingest";
 import { appHarness, type AppHarness } from "../support/app-harness";
 
-// Person 2's real agent loop (signal → reviewer → IntentBuilder → LeashClient) against Person 1's real
+// The real agent loop (signal → reviewer → IntentBuilder → LeashClient) against the real
 // gateway over HTTP. Only the market feed (FixtureMarketObserver) and the exchange (FakeAtkClient) are fixed.
 
 const rising = Array.from({ length: 30 }, (_, i) => 59_000 + i * (1_000 / 29)); // ends at 60000 → long_bias

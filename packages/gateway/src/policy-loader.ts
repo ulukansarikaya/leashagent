@@ -30,7 +30,7 @@ const INACTIVE = new Set(["revoked", "expired"]);
 const TRANSIENT = new Set(["chain_unavailable", "fetch_failed"]);
 
 /**
- * L4 PolicyLoader (§6.4 step 2, INV-11). Verification is Person 3's `loadVerifiedPolicy`; this class
+ * L4 PolicyLoader (§6.4 step 2, INV-11). Verification is @leashagent/chain's `loadVerifiedPolicy`; this class
  * only adds the verified cache:
  *  - a verified entry younger than `refreshAfterSec` is used without an RPC (no live chain read per order);
  *  - otherwise the chain is re-verified; on a transport failure the cache is used only within `cacheTtlSec`;

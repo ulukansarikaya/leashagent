@@ -7,7 +7,7 @@ export function dataUri(doc: unknown): string {
 
 /**
  * Mock of the on-chain PolicyRegistry (implements the shared PolicyChainClient). Policy documents are
- * `data:` URIs, so Person 3's real `loadVerifiedPolicy` / `fetchPolicyDocument` run against it unchanged.
+ * `data:` URIs, so the real `loadVerifiedPolicy` / `fetchPolicyDocument` run against it unchanged.
  * `publish()` mimics the owner's createPolicy/setPolicy transaction.
  */
 export class MockPolicyChain {

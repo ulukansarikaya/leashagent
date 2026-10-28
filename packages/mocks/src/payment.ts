@@ -3,7 +3,7 @@ import type { Hex } from "@leashagent/shared";
 type CreditState = "reserved" | "consumed" | "released";
 
 /**
- * Mock of Person 3's x402 PaymentEntitlement (§21.2). One "payment" grants `credits`.
+ * Mock of the x402 PaymentEntitlement (§21.2). One "payment" grants `credits`.
  * Idempotent on (policyId, requestId); BLOCK/PENDING release, ALLOW consumes.
  */
 export class MockPayment {

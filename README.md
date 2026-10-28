@@ -124,6 +124,8 @@ finalize credit once → issue one authorization → executor re-check → one e
 
 The full specification — data types, state machine, reason codes, storage schema and invariants — is in
 [`SONPLAN.md`](SONPLAN.md).
+Component notes: [`docs/GATEWAY.md`](docs/GATEWAY.md) (gateway, executor, OKX), [`docs/WEB3.md`](docs/WEB3.md)
+(Avalanche, x402, ERC-8004), [`docs/TEE.md`](docs/TEE.md).
 
 ---
 
@@ -375,7 +377,7 @@ packages/
 scripts/         Demo, local/Fuji gateways, deployment and live verification scripts
 tests/           Acceptance, attack, invariant and integration suites
 deploy/          Caddy reverse-proxy config; Phala Cloud (Intel TDX) compose file
-docs/            Deployment guide, TEE design, OKX integration notes, team handoffs
+docs/            Gateway/OKX, Avalanche/x402/ERC-8004, TEE, deployment, claims
 .github/         CI and image-publishing workflows
 SONPLAN.md       Full architecture specification
 ```

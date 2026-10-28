@@ -2,7 +2,7 @@ import { dec, decScale, isDec } from "./dec.js";
 import { deriveClOrdId } from "./ids.js";
 import type { Hex, InstrumentInfo, NormalizedOrder, OrderIntent, UUID } from "./types.js";
 
-// Order normalization (§5.5) — owned by Person 1, added to shared per PERSON3_HANDOFF.md item 7.
+// Order normalization (§5.5), shared by the gateway (L3) and the executor (L6) re-check.
 
 export class NormalizationError extends Error {
   constructor(message: string) {

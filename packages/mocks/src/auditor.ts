@@ -2,7 +2,7 @@ import type { AuditorInput, AuditorOutput, Dec } from "@leashagent/shared";
 
 export type MockAuditorMode = "ok" | "timeout" | "throw" | "garbage";
 
-/** Mock of Person 2's Jev / GenericLlm auditor adapter (§10). */
+/** Mock of the Jev / GenericLlm auditor adapter (§10). */
 export class MockAuditor {
   mode: MockAuditorMode = "ok";
   readonly calls: AuditorInput[] = [];

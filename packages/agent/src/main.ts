@@ -17,7 +17,7 @@ if (leaked.length) {
 
 const need = (k: string) => process.env[k] ?? (console.error(`missing ${k}`), process.exit(1));
 const account = privateKeyToAccount(need("AGENT_AUTH_KEY") as Hex);
-// Must point at Person 1's real gateway. No default, so a demo URL is never picked up silently.
+// Must point at the real gateway. No default, so a demo URL is never picked up silently.
 const leashUrl = need("LEASH_URL");
 const okxBase = process.env.OKX_PUBLIC_BASE ?? "https://www.okx.com";
 const http = guardedFetch([new URL(leashUrl).origin, new URL(okxBase).origin]);

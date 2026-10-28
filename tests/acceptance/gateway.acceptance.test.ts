@@ -1,6 +1,6 @@
 /**
- * Görev 2 acceptance suite (§26.1 attack checkpoint). HTTP-only, so it runs unchanged against
- * the TEST/DEMO mock (default) and against Person 1's real gateway (see target.ts).
+ * Gateway acceptance suite (§26.1 attack checkpoint). HTTP-only, so it runs unchanged against
+ * the TEST/DEMO mock (default) and against the real gateway (see target.ts).
  * Exact reason codes are asserted where the plan fixes them; where a real auditor's
  * judgement is involved, the assertion is "never reaches execution".
  */

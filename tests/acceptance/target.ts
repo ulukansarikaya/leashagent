@@ -1,6 +1,6 @@
 /**
  * Gateway under test. The acceptance suite talks to it over HTTP only (§9), so the same
- * tests run against the TEST/DEMO mock (default) or Person 1's real gateway:
+ * tests run against the TEST/DEMO mock (default) or the real gateway:
  *
  *   LEASH_GATEWAY_URL=https://… LEASH_AGENT_KEY=0x… LEASH_OWNER_KEY=0x… \
  *   LEASH_POLICY_ID=0x… LEASH_AGENT_ID=… npm run test:acceptance

@@ -19,7 +19,7 @@ function setup(opts: { refreshAfterSec?: number; cacheTtlSec?: number } = {}) {
   return { store, chain, loader, id: policy.binding.policyId, rpcs: () => rpc, advance: (s: number) => { now += s; } };
 }
 
-describe("PolicyLoader over Person 3's loadVerifiedPolicy (checklist §7)", () => {
+describe("PolicyLoader over @leashagent/chain loadVerifiedPolicy", () => {
   it("verified cache serves orders without a live RPC inside the refresh window", async () => {
     const t = setup({ refreshAfterSec: 10 });
     expect((await t.loader.load(t.id)).ok).toBe(true);

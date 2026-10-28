@@ -1,8 +1,8 @@
 /**
- * TEST/DEMO ONLY — stand-in for Person 1's gateway (L3/L4/L5/L6).
+ * TEST/DEMO ONLY — stand-in for the real gateway (L3/L4/L5/L6).
  * Used by: offline demo, unit/integration tests, injection demo, acceptance-suite self-check.
  * It never talks to OKX (execution is simulated) and must never be a production execution path;
- * the real E2E demo connects the agent and dashboard to Person 1's gateway.
+ * the real E2E demo connects the agent and dashboard to the real gateway.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
@@ -49,11 +49,11 @@ export type GatewayDeps = {
   reader: ReaderModel;
   /** Fresh reference price per call (stand-in for MarketDataProvider). */
   price: (instId: string) => string;
-  /** Person 3's PaymentEntitlement (e.g. CreditStore). Omitted: no credit gate. */
+  /** A PaymentEntitlement (e.g. @leashagent/payments CreditStore). Omitted: no credit gate. */
   entitlement?: PaymentEntitlement;
-  /** x402 purchase for POST /v1/credits (Person 3's purchaseCredits + a SettlementProvider). */
+  /** x402 purchase for POST /v1/credits (@leashagent/payments purchaseCredits + a SettlementProvider). */
   credits?: { store: CreditStore; provider: SettlementProvider };
-  /** Person 3's ChainOutbox (or anything with the same shape); feed its events to `chainEvent`. */
+  /** The @leashagent/chain ChainOutbox (or anything with the same shape); feed its events to `chainEvent`. */
   chain?: { enqueue(r: ChainRecord): Promise<void>; stats(): ChainOutboxStats };
   dashboardDir?: string;
   /** Local-demo only: accept owner actions with signature "0x". */

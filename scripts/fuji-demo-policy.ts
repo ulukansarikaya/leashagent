@@ -1,5 +1,5 @@
 // Create — or bring up to date — the on-chain demo policy on Avalanche Fuji, bound to the published ERC-8004 trading
-// agent. Idempotent. To delegate to another agent key (e.g. Person 2's), set AGENT_AUTH_ADDRESS and re-run: the owner
+// agent. Idempotent. To delegate to another agent key (e.g. another agent's), set AGENT_AUTH_ADDRESS and re-run: the owner
 // calls setDelegation then setPolicy (new version) so document and chain stay consistent (INV-11).
 // Run: npx tsx --env-file=.env scripts/fuji-demo-policy.ts
 import { readFileSync, writeFileSync } from "node:fs";

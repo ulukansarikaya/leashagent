@@ -1,5 +1,5 @@
 /**
- * Görev 2 integration with Person 3's packages through the TEST/DEMO gateway:
+ * Integration of the payments and chain packages through the TEST/DEMO gateway:
  * x402 credits (POST /v1/credits + CreditStore) and DecisionLog evidence (ChainOutbox).
  * Uses an in-memory DecisionLogPort; the real contract path is exercised by the demo on Anvil.
  */

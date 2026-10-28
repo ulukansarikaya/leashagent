@@ -1,4 +1,4 @@
-// Stand-ins for parts owned by Person 2 (agent, auditor) and Person 3 (chain, payments).
+// Stand-ins for the agent, auditor, chain and payment components (tests and local runs only).
 // Replaced by the real implementations at integration time; shapes follow the architecture doc.
 export * from "./policy";
 export * from "./agent";

@@ -3,9 +3,9 @@ import { ReasonCodes } from "@leashagent/shared";
 import { limitBuy } from "@leashagent/mocks";
 import { appHarness, type AppHarness } from "../support/app-harness";
 
-// LEASH_AGENT_GOREV1_FINAL_INTEGRATION_CHECKLIST.md — "P1 Security invariants", over HTTP.
+// Final integration checklist — security invariants, over HTTP.
 // Replay, HTTP retry, timeout, pause race, expiry and credit cases are in tests/attacks,
-// tests/invariants/e2e-execution.test.ts and tests/integration/person3-wiring.test.ts.
+// tests/invariants/e2e-execution.test.ts and tests/integration/web3-wiring.test.ts.
 
 let h: AppHarness | undefined;
 afterEach(async () => { await h?.close(); h = undefined; });

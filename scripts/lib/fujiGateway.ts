@@ -1,12 +1,12 @@
 /**
- * Leash Agent gateway wired to the REAL Avalanche Fuji deployment (Person 3 parts real, OKX still fake):
- *   - PolicyRegistry (Fuji) + policy document: Person 1's PolicyLoader over Person 3's PolicyChainClient/fetchPolicyDocument
+ * Leash Agent gateway wired to the REAL Avalanche Fuji deployment (chain, payments and identity real; OKX faked by default):
+ *   - PolicyRegistry (Fuji) + policy document: the gateway's PolicyLoader over the PolicyChainClient/fetchPolicyDocument
  *   - L6 pre-send recheck: createChainPolicyStateProvider over the same Fuji registry
  *   - Evidence: ChainOutbox worker → DecisionLog on Fuji (LOGGER key)
  *   - x402: CreditStore + POST /v1/credits (MockSettlement by default; X402_MODE=payai uses the PayAI facilitator)
  * OKX (OKX_MODE):
  *   - unset / "fake" (default): mocked account/market data and FakeAtkClient — nothing reaches OKX.
- *   - "atk": real OKX through ATK (Person 1): read-only key → OkxRiskProvider + OkxOrderOwnershipVerifier,
+ *   - "atk": real OKX through ATK: read-only key → OkxRiskProvider + OkxOrderOwnershipVerifier,
  *     public market data, trade key → executor's okx-trade-mcp child. Needs OKX_READ_*, OKX_TRADE_*,
  *     OKX_PROFILE (demo|live), OKX_SITE. The on-chain policy's accountRef must be that OKX account.
  *     Market BUY stays disabled unless MARKET_BUY_ENABLED=1 (only after docs/okx-atk-spike.md S5).

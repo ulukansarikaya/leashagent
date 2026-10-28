@@ -5,7 +5,7 @@
  *   npm run demo:attack -- --serve # keep the TEST/DEMO gateway + dashboard up
  * Deterministic: fixture market, heuristic reader/auditor, MockSettlement (no funds move), simulated
  * execution. ERC-8004 + DecisionLog run on a local Anvil chain when anvil is installed, else skipped.
- * The real E2E demo runs the agent against Person 1's gateway instead (README).
+ * The real E2E path runs the agent against the real gateway instead (npm run agent:live, README).
  */
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";

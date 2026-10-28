@@ -31,7 +31,7 @@ import {
 
 export const ETH_USDT = { instId: "ETH-USDT", lotSz: "0.0001", tickSz: "0.01", minSz: "0.001" };
 
-/** Full L3 + L4 + L5 stack wired to mocks of Person 2 / Person 3 components. */
+/** Full L3 + L4 + L5 stack wired to mocks of the agent, auditor, chain and payment components. */
 export async function harness(overrides: Partial<Policy> = {}, opts: { credits?: number } = {}) {
   let now = Math.floor(Date.now() / 1000);
   const clock = () => now;
@@ -47,7 +47,7 @@ export async function harness(overrides: Partial<Policy> = {}, opts: { credits?:
   const chain = new MockPolicyChain();
   chain.publish(policy);
 
-  // Person 3's real verification over the mock registry; refreshAfterSec 0 = verify on every load.
+  // The real @leashagent/chain verification over the mock registry; refreshAfterSec 0 = verify on every load.
   const loader = new PolicyLoader({
     store, clock, cacheTtlSec: 30, refreshAfterSec: 0,
     verify: (id) => loadVerifiedPolicy(chain, id, { now: clock() }),

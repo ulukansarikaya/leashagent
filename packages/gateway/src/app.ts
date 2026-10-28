@@ -26,7 +26,7 @@ import { DefaultRiskStore } from "./risk-store";
 import { SerialQueue } from "./serial";
 import { GatewayStore } from "./store";
 
-/** L1 ingest service (Person 2), reached only through this interface. */
+/** L1 ingest service (@leashagent/ingest), reached only through this interface. */
 export interface IngestService {
   read(req: ReadRequest): Promise<ReadSummary>;
 }
@@ -65,7 +65,7 @@ export type GatewayDeps = {
   reconcileExecutor?: () => Promise<unknown>;
   ingest?: IngestService;
   /**
-   * Chain evidence sender over this gateway's `chain_outbox` table — Person 3's
+   * Chain evidence sender over this gateway's `chain_outbox` table — the @leashagent/chain
    * `new ChainOutbox(db, decisionLogPort, { onEvent })` from @leashagent/chain fits. Omitted: evidence is
    * still queued durably, and /v1/health reports chain "disabled".
    */

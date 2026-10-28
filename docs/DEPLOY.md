@@ -15,8 +15,8 @@ canlıya alma bu rehberin kapsamında değildir.
 
 - Ubuntu/Debian bir VPS (1 vCPU / 1 GB RAM yeter), 80 ve 443 portları açık.
 - Docker + Docker Compose eklentisi: `curl -fsSL https://get.docker.com | sh`
-- **`LOGGER_PRIVATE_KEY`**: Fuji'deki `DecisionLog`'a yazma yetkisi olan anahtar (Kişi 3'te; ayrı deploy için
-  `fuji-p1.json` kullanılıyorsa Kişi 1'de). Bu anahtarın Fuji AVAX'ı olmalı. **Sohbete, koda, git'e koyma** —
+- **`LOGGER_PRIVATE_KEY`**: Fuji'deki `DecisionLog`'a yazma yetkisi olan anahtar (`fuji.json` deploy'unun logger'ı;
+  `LEASH_DEPLOYMENT=…/fuji-p1.json` ile ayrı deploy kullanılıyorsa onun logger'ı). Bu anahtarın Fuji AVAX'ı olmalı. **Sohbete, koda, git'e koyma** —
   yalnızca sunucudaki `.env` dosyasına.
 - İsteğe bağlı: bir alan adı (A kaydı sunucunun IP'sine yönlenmiş) → otomatik HTTPS.
 - İsteğe bağlı: OKX **demo** API anahtarları (Read ayrı, Trade ayrı; Withdraw kapalı).

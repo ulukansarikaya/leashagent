@@ -3,7 +3,7 @@ import { canonicalJson, chainRecordSchema, type ChainRecord, type DecisionChainW
 import { PermanentRevert, type DecisionLogPort } from "./decisionLogPort.js";
 
 /**
- * chain_outbox (§8) + three additive columns owned by Person 3:
+ * chain_outbox (§8) + three additive columns owned by @leashagent/chain:
  *   state            pending | submitted | confirmed | dead
  *   next_attempt_at  backoff gate for transient failures
  *   confirmed_at     when the record was seen on chain

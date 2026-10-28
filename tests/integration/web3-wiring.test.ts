@@ -8,9 +8,9 @@ import type { PaymentEntitlement } from "@leashagent/gateway";
 import type { PolicyStateProvider } from "@leashagent/executor";
 import { appHarness, type AppHarness } from "../support/app-harness";
 
-// Person 1 gateway/executor wired to Person 3's real modules (payments ledger, chain state adapter).
+// The gateway/executor wired to the real payments ledger and chain state adapter.
 
-// Compile-time contract checks: the real implementations fit Person 1's ports.
+// Compile-time contract checks: the real implementations fit the gateway's ports.
 const _payment: (db: DatabaseSync) => PaymentEntitlement = (db) => new CreditStore(db);
 const _state: (c: Parameters<typeof createChainPolicyStateProvider>[0]) => PolicyStateProvider = (c) => createChainPolicyStateProvider(c);
 void _payment;
@@ -76,7 +76,7 @@ describe("gateway ⇄ @leashagent/payments CreditStore (x402 ledger)", () => {
 });
 
 describe("executor ⇄ @leashagent/chain createChainPolicyStateProvider", () => {
-  it("L6 recheck through Person 3's adapter: on-chain pause between ALLOW and dispatch -> REVOKED, no write", async () => {
+  it("L6 recheck through the chain state adapter: on-chain pause between ALLOW and dispatch -> REVOKED, no write", async () => {
     h = await appHarness();
     const original = h.executor.execute.bind(h.executor);
     h.executor.execute = async (a, o) => { h!.chain.mutate(h!.base.policyId, { paused: true }); return original(a, o); };
@@ -102,7 +102,7 @@ describe("gateway chain_outbox ⇄ @leashagent/chain ChainOutbox worker (dashboa
     expect(healthChainSchema.safeParse(body.chain).success).toBe(true);
   });
 
-  it("decision + execution records go pending -> confirmed through Person 3's worker; payloads match ChainWritePayload", async () => {
+  it("decision + execution records go pending -> confirmed through the ChainOutbox worker; payloads match ChainWritePayload", async () => {
     h = await appHarness({}, { chainEvidence: (db, onEvent) => new ChainOutbox(db, port, { onEvent }) });
     const r = await h.intent(limitBuy());
     expect(r.body.status).toBe("ACKNOWLEDGED");

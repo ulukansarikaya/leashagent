@@ -105,7 +105,7 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (policy_id, request_id)
   );
   `,
-  // 006 — Person 3's chain_outbox columns (@leashagent/chain CHAIN_OUTBOX_DDL), so their worker can run
+  // 006 — the chain_outbox columns of @leashagent/chain (CHAIN_OUTBOX_DDL), so its worker can run
   // on this table. Their DDL is CREATE IF NOT EXISTS and would not add columns to an existing table.
   `
   ALTER TABLE chain_outbox ADD COLUMN state TEXT NOT NULL DEFAULT 'pending'

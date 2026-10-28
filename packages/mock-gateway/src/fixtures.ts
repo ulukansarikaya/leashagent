@@ -2,7 +2,7 @@
 import { computeAccountRef, computePolicyId, formatAgentId, type Hex, type PolicyBinding } from "@leashagent/shared";
 import type { DemoPolicy } from "./index.js";
 
-/** Placeholder ERC-8004 identity for offline runs; real values come from Person 3's registry. */
+/** Placeholder ERC-8004 identity for offline runs; real values come from the ERC-8004 registry. */
 export const DEMO_AGENT_REGISTRY = "0x8004000000000000000000000000000000000001" as Hex;
 export const DEMO_AGENT_REGISTRY_ID = "1";
 export const DEMO_ACCOUNT_REF = computeAccountRef("okx-demo-account");

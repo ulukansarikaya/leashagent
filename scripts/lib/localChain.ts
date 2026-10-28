@@ -1,6 +1,6 @@
 /**
  * DEMO ONLY: a throwaway Anvil chain (chainId 43113, so agentIds match the Fuji format) with
- * Person 3's MockIdentityRegistry (ERC-8004 stand-in) and the real DecisionLog contract.
+ * the MockIdentityRegistry (ERC-8004 stand-in) and the real DecisionLog contract.
  * Returns undefined if anvil is not installed; the demo then skips the chain steps.
  */
 import { spawn, type ChildProcess } from "node:child_process";

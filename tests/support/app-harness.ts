@@ -28,7 +28,7 @@ import { createChainPolicyStateProvider, loadVerifiedPolicy } from "@leashagent/
 const nonce16 = () => bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
 
 /**
- * The whole system as deployed for the demo, with Person 2/3 parts mocked:
+ * The whole system as deployed for the demo, with the agent, auditor, chain and payment parts mocked:
  * HTTP gateway (L3–L5 + L7 server side) ⇄ executor (own DB, own config) ⇄ fake OKX.
  */
 export async function appHarness(
@@ -61,7 +61,7 @@ export async function appHarness(
   const executor = new DefaultExecutor({
     db: openExecutorDb(":memory:"),
     atk,
-    // Person 3's real L6 adapter (reads PolicyRegistry directly), here over the mock registry.
+    // The real L6 chain adapter (reads PolicyRegistry directly), here over the mock registry.
     policyState: createChainPolicyStateProvider(chain),
     config: {
       guardSignerAddress: guard.address,

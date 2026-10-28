@@ -1,5 +1,5 @@
 /**
- * Görev 2 — the real agent path against the real gateway/executor, and INV-1 at the process boundary.
+ * The real agent path against the real gateway/executor, and INV-1 at the process boundary.
  */
 import { spawnSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
