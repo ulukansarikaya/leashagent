@@ -97,6 +97,10 @@ export type HttpOptions = {
   tee?: { status(): unknown; evidence(): unknown; attest?(nonce: Hex): Promise<unknown> };
   /** Which auditor is wired (shown in /v1/health → auditor), e.g. { provider: "heuristic", role: "fallback/demo auditor" }. */
   auditor?: unknown;
+  /** Remaining x402 service credits of a policy's delegated agent (GET /v1/credits/:policyId). */
+  creditBalance?: (policyId: Hex, agentId: string, payer: Hex) => number;
+  /** Block explorer for DecisionLog transactions (shown in /v1/health → explorer); omit when evidence is simulated. */
+  explorer?: string;
 };
 
 const STATIC_TYPES: Record<string, string> = {
@@ -224,6 +228,7 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       chain: app.chainWorker ? { outbox: app.chainWorker.stats() } : "disabled",
       tee: opts.tee ? opts.tee.status() : "disabled",
       ...(opts.auditor ? { auditor: opts.auditor } : {}),
+      ...(opts.explorer ? { explorer: opts.explorer } : {}),
     });
   }
 
@@ -304,6 +309,12 @@ export function createHttpHandler(app: GatewayApp, opts: HttpOptions = {}) {
       }
       if (m === "POST" && path === "/v1/reads") return await postRead(req, res);
       if (m === "POST" && path === "/v1/credits" && opts.credits) return await postCredits(req, res);
+      if (m === "GET" && path.startsWith("/v1/credits/") && opts.creditBalance) {
+        const policyId = path.slice("/v1/credits/".length).toLowerCase() as Hex;
+        const p = app.store.getPolicy(policyId);
+        if (!p) throw new HttpError(404, { status: "ERROR", message: "unknown policy" });
+        return send(res, 200, { policyId, agentId: p.policy.binding.agentId, available: opts.creditBalance(policyId, p.policy.binding.agentId, p.agentAuthAddress) });
+      }
       if (m === "GET" && opts.dashboardDir && !path.startsWith("/v1/")) {
         const root = resolve(opts.dashboardDir);
         const file = resolve(root, "." + (path === "/" ? "/index.html" : decodeURIComponent(path)));

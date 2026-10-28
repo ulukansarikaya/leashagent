@@ -11,41 +11,46 @@
   <h1>Leash Agent</h1>
   <span id="conn" class="pill">bağlanıyor…</span>
   <span id="pausedPill" class="pill"></span>
+  <span id="teePill" class="pill" title="TEE Lite (docs/TEE.md)"></span>
+  <span id="auditorPill" class="pill" title="Auditor"></span>
   <div class="spacer"></div>
   <button id="connectWallet">Cüzdan bağla</button>
   <button id="pauseBtn" class="danger">Acil durdur</button>
 </header>
+
 <main>
-  <section id="policy" class="card">
-    <h2>Politika</h2>
-    <dl id="policyBody"><dt>yükleniyor</dt></dl>
+  <section class="kpis">
+    <div class="kpi"><small>Kararlar</small><div><b id="kAllow" class="s-ALLOWED">0</b> izin · <b id="kBlock" class="s-BLOCKED">0</b> engel · <b id="kPending" class="s-PENDING">0</b> onayda</div></div>
+    <div class="kpi"><small>OKX'e yazılan emir</small><div><b id="kWrites" class="big">0</b> <span class="muted small" id="kWritesNote">engellenenler 0 yazma</span></div></div>
+    <div class="kpi"><small>x402 servis kredisi</small><div><b id="kCredits" class="big">—</b> <span class="muted small" id="kPayments"></span></div></div>
+    <div class="kpi"><small>Avalanche kanıtı (DecisionLog)</small><div id="kChain" class="small muted">—</div></div>
+    <div class="kpi"><small>Audit hash zinciri</small><div><b id="chainOk">—</b></div></div>
   </section>
-  <section class="card">
-    <h2>Zincir kanıtı <small class="muted">(DecisionLog outbox)</small></h2>
-    <div id="chainStats" class="stats"><p class="muted">bilinmiyor</p></div>
-    <p id="chainNote" class="muted small"></p>
-  </section>
-  <section class="card">
-    <h2>Ödeme / x402</h2>
-    <p><span id="paymentCount" class="big s-REJECTED_PAYMENT">0</span> emir <b>REJECTED_PAYMENT (004)</b> — servis kredisi yok.</p>
-    <p class="muted small">Kredi yalnızca hizmet hakkı verir, işlem yetkisi vermez. Agent <code>POST /v1/credits</code> ile x402 ödemesi yapıp tekrar dener.</p>
-    <p id="creditMode" class="muted small"></p>
-  </section>
-  <section class="card">
-    <h2>Onay bekleyenler</h2>
+
+  <section class="card" id="pendingCard">
+    <h2>Onay bekleyenler <small class="muted">— onay, kuralları taze durumla yeniden çalıştırır; atlatma değildir</small></h2>
     <div id="pending"><p class="muted">Yok</p></div>
   </section>
-  <section class="card wide">
-    <h2>Emirler</h2>
-    <table>
-      <thead><tr><th>Zaman</th><th>Emir</th><th>Durum</th><th>Kod</th><th>Auditor</th><th>Kanıt</th><th>Zincir</th></tr></thead>
-      <tbody id="orders"></tbody>
-    </table>
+
+  <section class="card">
+    <h2>Emir akışı</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Zaman</th><th>Agent intent</th><th>Policy · risk</th><th>Auditor</th><th>Karar</th><th>OKX</th><th>Avalanche kanıtı</th></tr></thead>
+        <tbody id="orders"><tr><td colspan="7" class="muted">Henüz emir yok</td></tr></tbody>
+      </table>
+    </div>
   </section>
-  <section class="card wide">
-    <h2>Canlı akış <small class="muted">(hash zinciri: <span id="chainOk">—</span>)</small></h2>
+
+  <details class="card">
+    <summary><h2>Policy <small class="muted" id="policySummary"></small></h2></summary>
+    <dl id="policyBody"><dt>yükleniyor</dt></dl>
+  </details>
+
+  <details class="card">
+    <summary><h2>Audit olay akışı <small class="muted">(teknik)</small></h2></summary>
     <ol id="feed" reversed></ol>
-  </section>
+  </details>
 </main>
 <script type="module" src="app.js"></script>
 </body>

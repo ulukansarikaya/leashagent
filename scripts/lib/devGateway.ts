@@ -41,6 +41,8 @@ export type DevGatewayOptions = {
   news?: { url?: string; body: string }[];
   keys?: { agent?: Hex; owner?: Hex; guard?: Hex };
   limits?: Partial<Policy["limits"]>;
+  /** DecisionLog port override (tests: simulate an RPC outage). Default: in-memory, or Fuji with DEV_REAL_CHAIN=1. */
+  decisionLog?: DecisionLogPort;
 };
 
 export async function buildDevGateway(o: DevGatewayOptions = {}) {
@@ -117,7 +119,7 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
       auditor: auditor.auditor,
       executor: executorPort,
       executionLookup: executor,
-      chainEvidence: (db, onEvent) => new ChainOutbox(db, decisionLogPort(), { onEvent }),
+      chainEvidence: (db, onEvent) => new ChainOutbox(db, o.decisionLog ?? decisionLogPort(), { onEvent, baseBackoffSec: 1, maxBackoffSec: 2 }),
       reconcileExecutor: async () => {
         for (const e of await executor.reconcile()) {
           const row = app.store.findRequest(e.requestId);
@@ -145,7 +147,11 @@ export async function buildDevGateway(o: DevGatewayOptions = {}) {
     tee: tee.http,
     auditor: auditor.label,
     dashboardDir: fileURLToPath(new URL("../../packages/dashboard/public", import.meta.url)),
-    ...(credits ? { credits: (q) => purchaseCredits({ store: credits, provider: settlement, delegations: delegationResolver(app.loader, clock) }, q) } : {}),
+    ...(credits ? {
+      credits: (q) => purchaseCredits({ store: credits, provider: settlement, delegations: delegationResolver(app.loader, clock) }, q),
+      creditBalance: (policyId, agentId, payer) => credits.available(policyId, agentId, payer),
+    } : {}),
+    ...(process.env.DEV_REAL_CHAIN === "1" ? { explorer: "https://testnet.snowtrace.io" } : {}),
   });
 
   return {

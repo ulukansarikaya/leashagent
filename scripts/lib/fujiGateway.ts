@@ -166,6 +166,8 @@ export async function buildFujiGateway(opts: { price?: string; dataDir?: string 
   const server = createGatewayServer(app, {
     tee: tee.http,
     auditor: auditor.label,
+    explorer: dep.explorer,
+    creditBalance: (policyId, agentId, payer) => credits.available(policyId, agentId, payer),
     credits: (q) => purchaseCredits({ store: credits, provider: settlement, delegations: delegationResolver(app.loader, clock) }, q),
     dashboardDir: join(dirname(fileURLToPath(import.meta.url)), "../../packages/dashboard/public"),
   });
